@@ -11,7 +11,7 @@ from ..config import get_settings
 from ..db import get_db
 from ..models import Checkpoint, Course, Question, Room, Slide, User
 from ..modules import llm
-from ..modules.slide_import import parse_pptx, slide_plain_text
+from ..modules.slide_import import parse_pptx, parse_pdf, slide_plain_text
 from ..schemas import (
     CheckpointCreate,
     CheckpointOut,
@@ -252,6 +252,66 @@ async def upload_pptx(
             blocks=item["blocks"],
             notes=item["notes"],
             source="pptx",
+        )
+        db.add(slide)
+        created.append(slide)
+    db.commit()
+    return [_slide_out(s) for s in created]
+
+
+@router.post("/{course_id}/slides/upload-pdf", response_model=list[SlideOut], status_code=201)
+async def upload_pdf(
+    course_id: int,
+    file: UploadFile = File(...),
+    replace: bool = True,
+    db: DbSession = Depends(get_db),
+    user: User = Depends(current_user),
+) -> list[SlideOut]:
+    """Nhận file PDF thật và chuyển mỗi trang thành một slide."""
+    course = _owned_course(db, course_id, user)
+
+    filename = (file.filename or "").lower()
+    if not filename.endswith(".pdf"):
+        raise HTTPException(status_code=415, detail="Chỉ nhận file .pdf.")
+
+    dest = settings.upload_dir / f"course-{course.id}-{uuid.uuid4().hex[:8]}.pdf"
+    size = 0
+    try:
+        with dest.open("wb") as out:
+            while chunk := await file.read(1024 * 512):
+                size += len(chunk)
+                if size > MAX_UPLOAD_BYTES:
+                    raise HTTPException(status_code=413, detail="File vượt quá 40 MB.")
+                out.write(chunk)
+    finally:
+        await file.close()
+
+    try:
+        parsed = parse_pdf(dest)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Không đọc được file PDF: {type(exc).__name__}") from exc
+
+    if not parsed:
+        dest.unlink(missing_ok=True)
+        raise HTTPException(status_code=422, detail="File không có trang PDF nào.")
+
+    if replace:
+        for old in list(course.slides):
+            db.delete(old)
+        db.flush()
+        offset = 0
+    else:
+        offset = len(course.slides)
+
+    created: list[Slide] = []
+    for item in parsed:
+        slide = Slide(
+            course_id=course.id,
+            index=offset + item["index"],
+            title=item["title"],
+            blocks=item["blocks"],
+            notes=item["notes"],
+            source="pdf",
         )
         db.add(slide)
         created.append(slide)

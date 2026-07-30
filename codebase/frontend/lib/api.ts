@@ -2,7 +2,8 @@
  * Lớp gọi API duy nhất của AGORA.
  * Không có dữ liệu mô phỏng — mọi số liệu đều đến từ backend thật.
  */
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+export const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
 const TOKEN_KEY = "agora-token";
 
@@ -51,7 +52,11 @@ async function request<T>(
   const token = auth ? getToken() : null;
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const res = await fetch(`${API_BASE}${path}`, { ...rest, headers, cache: "no-store" });
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...rest,
+    headers,
+    cache: "no-store",
+  });
   if (!res.ok) throw new ApiError(res.status, await parseError(res));
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
@@ -340,43 +345,82 @@ export interface StudentState {
 
 export const api = {
   /* --- tài khoản giảng viên --- */
-  register: (b: { email: string; password: string; full_name: string; organization?: string }) =>
-    request<AuthResponse>("/auth/register", { method: "POST", body: body(b), auth: false }),
+  register: (b: {
+    email: string;
+    password: string;
+    full_name: string;
+    organization?: string;
+  }) =>
+    request<AuthResponse>("/auth/register", {
+      method: "POST",
+      body: body(b),
+      auth: false,
+    }),
   login: (b: { email: string; password: string }) =>
-    request<AuthResponse>("/auth/login", { method: "POST", body: body(b), auth: false }),
+    request<AuthResponse>("/auth/login", {
+      method: "POST",
+      body: body(b),
+      auth: false,
+    }),
   me: () => request<UserOut>("/auth/me"),
 
   /* --- khoá học --- */
   courses: () => request<CourseOut[]>("/courses"),
   course: (id: number) => request<CourseOut>(`/courses/${id}`),
-  createCourse: (b: { title: string; subject?: string; description?: string }) =>
-    request<CourseOut>("/courses", { method: "POST", body: body(b) }),
+  createCourse: (b: {
+    title: string;
+    subject?: string;
+    description?: string;
+  }) => request<CourseOut>("/courses", { method: "POST", body: body(b) }),
   updateCourse: (id: number, b: Record<string, unknown>) =>
     request<CourseOut>(`/courses/${id}`, { method: "PATCH", body: body(b) }),
-  deleteCourse: (id: number) => request<void>(`/courses/${id}`, { method: "DELETE" }),
+  deleteCourse: (id: number) =>
+    request<void>(`/courses/${id}`, { method: "DELETE" }),
 
   /* --- slide --- */
-  slides: (courseId: number) => request<SlideOut[]>(`/courses/${courseId}/slides`),
+  slides: (courseId: number) =>
+    request<SlideOut[]>(`/courses/${courseId}/slides`),
   uploadPptx: (courseId: number, file: File, replace = true) => {
     const form = new FormData();
     form.append("file", file);
-    return request<SlideOut[]>(`/courses/${courseId}/slides/upload?replace=${replace}`, {
-      method: "POST",
-      body: form,
-    });
+    return request<SlideOut[]>(
+      `/courses/${courseId}/slides/upload?replace=${replace}`,
+      {
+        method: "POST",
+        body: form,
+      },
+    );
+  },
+  uploadPdf: (courseId: number, file: File, replace = true) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<SlideOut[]>(
+      `/courses/${courseId}/slides/upload-pdf?replace=${replace}`,
+      {
+        method: "POST",
+        body: form,
+      },
+    );
   },
   updateSlide: (slideId: number, b: Record<string, unknown>) =>
-    request<SlideOut>(`/courses/slides/${slideId}`, { method: "PATCH", body: body(b) }),
+    request<SlideOut>(`/courses/slides/${slideId}`, {
+      method: "PATCH",
+      body: body(b),
+    }),
 
   /* --- checkpoint --- */
-  checkpoints: (courseId: number) => request<CheckpointOut[]>(`/courses/${courseId}/checkpoints`),
+  checkpoints: (courseId: number) =>
+    request<CheckpointOut[]>(`/courses/${courseId}/checkpoints`),
   createCheckpoint: (slideId: number, b: { label?: string; goal?: string }) =>
     request<CheckpointOut>(`/courses/slides/${slideId}/checkpoint`, {
       method: "POST",
       body: body(b),
     }),
   updateCheckpoint: (id: number, b: Record<string, unknown>) =>
-    request<CheckpointOut>(`/courses/checkpoints/${id}`, { method: "PATCH", body: body(b) }),
+    request<CheckpointOut>(`/courses/checkpoints/${id}`, {
+      method: "PATCH",
+      body: body(b),
+    }),
   deleteCheckpoint: (id: number) =>
     request<void>(`/courses/checkpoints/${id}`, { method: "DELETE" }),
   addQuestions: (checkpointId: number, questions: QuestionIn[]) =>
@@ -384,7 +428,8 @@ export const api = {
       method: "POST",
       body: body(questions),
     }),
-  deleteQuestion: (id: number) => request<void>(`/courses/questions/${id}`, { method: "DELETE" }),
+  deleteQuestion: (id: number) =>
+    request<void>(`/courses/questions/${id}`, { method: "DELETE" }),
   draftQuestions: (checkpointId: number, count = 2) =>
     request<{ questions: QuestionIn[]; source: string; note: string }>(
       `/courses/checkpoints/${checkpointId}/draft`,
@@ -395,12 +440,14 @@ export const api = {
   rooms: () => request<RoomOut[]>("/rooms"),
   createRoom: (b: { course_id: number; name: string }) =>
     request<RoomOut>("/rooms", { method: "POST", body: body(b) }),
-  deleteRoom: (id: number) => request<void>(`/rooms/${id}`, { method: "DELETE" }),
+  deleteRoom: (id: number) =>
+    request<void>(`/rooms/${id}`, { method: "DELETE" }),
   startSession: (roomId: number) =>
     request<SessionOut>(`/rooms/${roomId}/sessions`, { method: "POST" }),
   endSession: (sessionId: number) =>
     request<SessionOut>(`/rooms/sessions/${sessionId}/end`, { method: "POST" }),
-  session: (sessionId: number) => request<SessionOut>(`/rooms/sessions/${sessionId}`),
+  session: (sessionId: number) =>
+    request<SessionOut>(`/rooms/sessions/${sessionId}`),
 
   /* --- Bục Giảng --- */
   changeSlide: (sessionId: number, slide_index: number) =>
@@ -414,34 +461,61 @@ export const api = {
         (slideIndex === undefined ? "" : `?slide_index=${slideIndex}`),
     ),
   triggerQuestion: (sessionId: number, question_id: number | null) =>
-    request<{ current_question_id: number | null }>(`/teaching/sessions/${sessionId}/question`, {
-      method: "POST",
-      body: body({ question_id }),
-    }),
+    request<{ current_question_id: number | null }>(
+      `/teaching/sessions/${sessionId}/question`,
+      {
+        method: "POST",
+        body: body({ question_id }),
+      },
+    ),
   teachingDashboard: (sessionId: number) =>
     request<TeachingDashboard>(`/teaching/sessions/${sessionId}/dashboard`),
-  advice: (sessionId: number, b: { slide_index?: number; lecturer_request?: string }) =>
-    request<Advice>(`/teaching/sessions/${sessionId}/advice`, { method: "POST", body: body(b) }),
-  adviceFeedback: (sessionId: number, adviceId: number, feedback: string, note = "") =>
-    request<{ ok: boolean }>(`/teaching/sessions/${sessionId}/advice/${adviceId}/feedback`, {
+  advice: (
+    sessionId: number,
+    b: { slide_index?: number; lecturer_request?: string },
+  ) =>
+    request<Advice>(`/teaching/sessions/${sessionId}/advice`, {
       method: "POST",
-      body: body({ feedback, note }),
+      body: body(b),
     }),
+  adviceFeedback: (
+    sessionId: number,
+    adviceId: number,
+    feedback: string,
+    note = "",
+  ) =>
+    request<{ ok: boolean }>(
+      `/teaching/sessions/${sessionId}/advice/${adviceId}/feedback`,
+      {
+        method: "POST",
+        body: body({ feedback, note }),
+      },
+    ),
 
   /* --- trợ lý AI của dashboard --- */
   assistantStatus: () => request<AssistantStatus>("/assistant/status"),
-  assistantChat: (messages: { role: "user" | "assistant"; content: string }[]) =>
-    request<AssistantTurn>("/assistant/chat", { method: "POST", body: body({ messages }) }),
+  assistantChat: (
+    messages: { role: "user" | "assistant"; content: string }[],
+  ) =>
+    request<AssistantTurn>("/assistant/chat", {
+      method: "POST",
+      body: body({ messages }),
+    }),
 
   /* --- dashboard chủ phòng --- */
   overview: () => request<Overview>("/insights/overview"),
-  recentSessions: (limit = 10) => request<SessionSummary[]>(`/insights/sessions?limit=${limit}`),
+  recentSessions: (limit = 10) =>
+    request<SessionSummary[]>(`/insights/sessions?limit=${limit}`),
   courseQuality: (courseId: number) =>
     request<CourseQuality>(`/insights/courses/${courseId}/quality`),
 
   /* --- học viên (không cần tài khoản, chỉ mã phòng) --- */
   join: (b: { code: string; display_name: string; avatar?: string }) =>
-    request<JoinResult>("/join", { method: "POST", body: body(b), auth: false }),
+    request<JoinResult>("/join", {
+      method: "POST",
+      body: body(b),
+      auth: false,
+    }),
   studentSlides: (sessionId: number) =>
     request<SlideOut[]>(`/sessions/${sessionId}/slides`, { auth: false }),
   studentState: (sessionId: number) =>
@@ -457,20 +531,46 @@ export const api = {
       confidence?: number;
     },
   ) =>
-    request<{ correct: boolean | null; score: number; explanation: string | null }>(
-      `/sessions/${sessionId}/answers`,
-      { method: "POST", body: body(b), auth: false },
-    ),
+    request<{
+      correct: boolean | null;
+      score: number;
+      explanation: string | null;
+    }>(`/sessions/${sessionId}/answers`, {
+      method: "POST",
+      body: body(b),
+      auth: false,
+    }),
   recordEvent: (
     sessionId: number,
-    b: { token: string; type: string; slide_index: number; payload?: Record<string, unknown> },
-  ) => request<unknown>(`/sessions/${sessionId}/events`, { method: "POST", body: body(b), auth: false }),
+    b: {
+      token: string;
+      type: string;
+      slide_index: number;
+      payload?: Record<string, unknown>;
+    },
+  ) =>
+    request<unknown>(`/sessions/${sessionId}/events`, {
+      method: "POST",
+      body: body(b),
+      auth: false,
+    }),
   requestHint: (sessionId: number, b: { token: string; slide_index: number }) =>
-    request<{ id: number; questions: string[]; source: string; note: string; guard_flags: string[] }>(
-      `/sessions/${sessionId}/hints`,
-      { method: "POST", body: body(b), auth: false },
-    ),
-  sendHint: (sessionId: number, hintId: number, b: { token: string; question: string }) =>
+    request<{
+      id: number;
+      questions: string[];
+      source: string;
+      note: string;
+      guard_flags: string[];
+    }>(`/sessions/${sessionId}/hints`, {
+      method: "POST",
+      body: body(b),
+      auth: false,
+    }),
+  sendHint: (
+    sessionId: number,
+    hintId: number,
+    b: { token: string; question: string },
+  ) =>
     request<unknown>(`/sessions/${sessionId}/hints/${hintId}/send`, {
       method: "POST",
       body: body(b),

@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from pypdf import PdfReader
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 
@@ -118,6 +119,41 @@ def parse_pptx(path: Path) -> list[dict]:
                 "title": title or f"Slide {i + 1}",
                 "blocks": blocks or [{"type": "title", "text": f"Slide {i + 1}"}],
                 "notes": notes[:2000],
+            }
+        )
+
+    return result
+
+
+def parse_pdf(path: Path) -> list[dict]:
+    reader = PdfReader(str(path))
+    result: list[dict] = []
+
+    for i, page in enumerate(reader.pages):
+        text = page.extract_text() or ""
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        title = lines[0][:200] if lines else f"Trang {i + 1}"
+        body = lines[1:] if lines else []
+        blocks: list[dict] = []
+
+        if title:
+            blocks.append({"type": "title", "text": title})
+
+        if body:
+            if len(body) == 1 and len(body[0]) <= 140:
+                blocks.append({"type": "lead", "text": body[0]})
+            else:
+                items = [line[:MAX_CHARS] for line in body][:MAX_BULLETS]
+                blocks.append({"type": "bullets", "items": items})
+        else:
+            blocks.append({"type": "note", "text": "Trang PDF này không có văn bản có thể trích xuất."})
+
+        result.append(
+            {
+                "index": i,
+                "title": title,
+                "blocks": blocks,
+                "notes": "",
             }
         )
 
