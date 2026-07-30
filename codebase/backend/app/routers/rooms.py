@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
+from .. import realtime
 from ..db import get_db
 from ..models import Course, Participant, Room, Session, Slide, User, utcnow
 from ..schemas import RoomCreate, RoomOut, SessionOut
@@ -143,18 +144,26 @@ def start_session(
 
 
 @router.post("/sessions/{session_id}/end", response_model=SessionOut)
-def end_session(
+async def end_session(
     session_id: int, db: DbSession = Depends(get_db), user: User = Depends(current_user)
 ) -> SessionOut:
     session = db.get(Session, session_id)
     if session is None or session.room.owner_id != user.id:
         raise HTTPException(status_code=404, detail="Không tìm thấy buổi học.")
+    ended_now = session.ended_at is None
     if session.ended_at is None:
         session.ended_at = utcnow()
         session.current_question_id = None
         for p in session.participants:
             p.online = False
         db.commit()
+    if ended_now:
+        await realtime.end_session_tracking(session_id)
+        await realtime.broadcast(
+            session_id,
+            "session_ended",
+            {"session_id": session_id, "slide_index": session.current_slide_index},
+        )
     return session_out(db, session)
 
 

@@ -54,7 +54,12 @@ async def change_slide(
     session.current_question_id = None
     db.commit()
 
-    await realtime.broadcast(session_id, "slide_changed", {"slide_index": payload.slide_index})
+    await realtime.lecturer_slide_changed(session_id, payload.slide_index)
+    await realtime.broadcast(
+        session_id,
+        "slide_changed",
+        {"session_id": session_id, "slide_index": payload.slide_index},
+    )
     return {"slide_index": payload.slide_index}
 
 
@@ -98,7 +103,7 @@ async def trigger_question(
     if payload.question_id is None:
         session.current_question_id = None
         db.commit()
-        await realtime.broadcast(session_id, "question_closed", {})
+        await realtime.broadcast(session_id, "question_closed", {"session_id": session_id})
         return {"current_question_id": None}
 
     question = db.get(Question, payload.question_id)
@@ -111,14 +116,23 @@ async def trigger_question(
     if not checkpoint.active:
         raise HTTPException(status_code=409, detail="Checkpoint này đang bị tắt.")
 
+    previous_slide_index = session.current_slide_index
     session.current_question_id = question.id
     session.current_slide_index = checkpoint.slide.index
     db.commit()
 
+    await realtime.lecturer_slide_changed(session_id, checkpoint.slide.index)
+    if previous_slide_index != checkpoint.slide.index:
+        await realtime.broadcast(
+            session_id,
+            "slide_changed",
+            {"session_id": session_id, "slide_index": checkpoint.slide.index},
+        )
     await realtime.broadcast(
         session_id,
         "question_opened",
         {
+            "session_id": session_id,
             "id": question.id,
             "type": question.type,
             "prompt": question.prompt,

@@ -148,6 +148,8 @@ Câu trả lời của học viên
 | Upload .pptx và đọc thành slide vẽ trên canvas | Thật |
 | Checkpoint + 6 kiểu câu hỏi, chấm bằng luật | Thật |
 | Đồng bộ slide realtime, mở/đóng câu hỏi, tín hiệu học viên | Thật |
+| Tracking lệch slide + lệnh tự đồng bộ sau 5 phút | **Backend đã hoàn tất; frontend chưa tích hợp event** |
+| API dữ liệu cho dashboard Trợ giảng | **Backend đã hoàn tất; giao diện frontend chưa làm** |
 | Analytics + State Engine + Advisor + hậu kiểm | Thật |
 | Dashboard chủ phòng và chất lượng theo từng slide | Thật |
 | Dữ liệu mô phỏng | **Đã bỏ hoàn toàn** — mọi số liệu đến từ buổi dạy thật |
