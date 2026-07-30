@@ -41,7 +41,9 @@ async def _emit_tracking_summary(session_id: int) -> None:
 
 
 async def _emit_force_sync(command: AutoSyncCommand) -> int | None:
-    """Ghi audit rồi phát lệnh riêng cho mọi tab của đúng học viên."""
+    """Ghi audit idempotent rồi phát lệnh riêng cho mọi tab của học viên."""
+    audit_id: int
+    already_emitted = False
     with SessionLocal() as db:
         session = db.get(Session, command.session_id)
         if session is None or session.ended_at is not None:
@@ -64,36 +66,48 @@ async def _emit_force_sync(command: AutoSyncCommand) -> int | None:
             mismatch_seconds=command.mismatch_seconds,
             mismatch_id=command.mismatch_id,
         )
-        existing_audit = db.scalar(
-            select(LearningEvent.id).where(
+        audit = db.scalar(
+            select(LearningEvent).where(
                 LearningEvent.session_id == command.session_id,
                 LearningEvent.participant_id == command.participant_id,
                 LearningEvent.type == "auto_slide_sync",
                 LearningEvent.payload["sync_id"].as_string() == command.sync_id,
             )
         )
-        if existing_audit is None:
-            db.add(
-                LearningEvent(
-                    session_id=command.session_id,
-                    participant_id=command.participant_id,
-                    slide_index=command.slide_index,
-                    type="auto_slide_sync",
-                    payload={
-                        "from_slide_index": command.from_slide_index,
-                        "mismatch_seconds": command.mismatch_seconds,
-                        "reason": "slide_mismatch_timeout",
-                        "sync_id": command.sync_id,
-                    },
-                )
+        if audit is None:
+            audit = LearningEvent(
+                session_id=command.session_id,
+                participant_id=command.participant_id,
+                slide_index=command.slide_index,
+                type="auto_slide_sync",
+                payload={
+                    "from_slide_index": command.from_slide_index,
+                    "mismatch_seconds": command.mismatch_seconds,
+                    "reason": "slide_mismatch_timeout",
+                    "sync_id": command.sync_id,
+                    "delivery_status": "pending",
+                },
             )
+            db.add(audit)
             db.commit()
+        else:
+            already_emitted = audit.payload.get("delivery_status") == "emitted"
+        audit_id = audit.id
 
-    await sio.emit(
-        "force_slide_sync",
-        command.as_payload(),
-        room=participant_room(command.participant_id),
-    )
+    if not already_emitted:
+        await sio.emit(
+            "force_slide_sync",
+            command.as_payload(),
+            room=participant_room(command.participant_id),
+        )
+        with SessionLocal() as db:
+            audit = db.get(LearningEvent, audit_id)
+            if audit is not None:
+                audit.payload = {
+                    **audit.payload,
+                    "delivery_status": "emitted",
+                }
+                db.commit()
     return command.slide_index
 
 

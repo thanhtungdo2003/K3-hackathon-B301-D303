@@ -24,6 +24,41 @@
   color-scheme: dark;
 }
 
+/**
+ * Khu vực dashboard dùng bảng màu riêng: xanh dương đậm / đỏ / trắng.
+ * Chỉ áp trong `.ai-shell` để phần dành cho học viên giữ nguyên tông sáng cũ.
+ */
+.ai-shell {
+  --ai-navy: #0b2e63;
+  --ai-navy-soft: #123e8c;
+  --ai-blue: #1d4ed8;
+  --ai-blue-tint: #eaf1ff;
+  --ai-red: #d92b2b;
+  --ai-red-tint: #fdeceb;
+  --ai-bg: #f4f7fd;
+  --ai-card: #ffffff;
+  --ai-line: #dde5f3;
+  --ai-ink: #0d1b33;
+  --ai-muted: #5c6b87;
+
+  background-color: var(--ai-bg);
+  color: var(--ai-ink);
+}
+
+.dark .ai-shell {
+  --ai-navy: #9dc0ff;
+  --ai-navy-soft: #6f9df0;
+  --ai-blue: #4d8bff;
+  --ai-blue-tint: #16233c;
+  --ai-red: #ff6b6b;
+  --ai-red-tint: #2c1719;
+  --ai-bg: #0a1020;
+  --ai-card: #121b2e;
+  --ai-line: #24314c;
+  --ai-ink: #eaf0fb;
+  --ai-muted: #94a3bd;
+}
+
 html,
 body {
   background-color: var(--c-canvas);
@@ -53,4 +88,78 @@ body {
   .blk-card {
     @apply rounded-blk border-2 border-b-4 border-line bg-surface;
   }
+}
+
+/* ── Bento cho dashboard ─────────────────────────────────────────────────── */
+
+.bento {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 14px;
+}
+
+@media (max-width: 900px) {
+  .bento {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.bento-card {
+  background: var(--ai-card);
+  border: 1px solid var(--ai-line);
+  border-radius: 18px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* Ô nhấn: nền xanh đậm đặc, chữ trắng — dùng cho một ô duy nhất mỗi hàng. */
+.bento-card--navy {
+  background: var(--ai-navy);
+  border-color: var(--ai-navy);
+  color: #ffffff;
+}
+
+.dark .bento-card--navy {
+  background: #14243f;
+  border-color: #24314c;
+  color: var(--ai-ink);
+}
+
+.bento-card--red {
+  border-color: var(--ai-red);
+}
+
+.span-2 { grid-column: span 2; }
+.span-3 { grid-column: span 3; }
+.span-4 { grid-column: span 4; }
+.span-6 { grid-column: span 6; }
+
+@media (max-width: 900px) {
+  .span-3, .span-4, .span-6 { grid-column: span 2; }
+}
+
+.bento-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ai-muted);
+}
+
+.bento-card--navy .bento-label {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.dark .bento-card--navy .bento-label {
+  color: var(--ai-muted);
+}
+
+.bento-value {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
 }

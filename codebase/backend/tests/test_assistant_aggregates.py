@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 import unittest
 from datetime import datetime, timezone
+from unittest.mock import patch
 
-from app.models import Answer, LearningEvent, Participant
-from app.routers.assistant import _pulse, _support_queue
+from app.models import Answer, LearningEvent, Participant, Session
+from app.routers.assistant import _pulse, _support_queue, _tracking_aggregate
 
 
 NOW = datetime(2026, 7, 30, 9, 0, tzinfo=timezone.utc)
@@ -94,6 +95,47 @@ class AssistantAggregateTests(unittest.TestCase):
         self.assertEqual(queue[0]["text"], "Em chưa hiểu ví dụ này.")
         self.assertNotIn("participant_id", serialized)
         self.assertNotIn("Private Name", serialized)
+
+    def test_tracking_total_counts_only_emitted_force_events(self) -> None:
+        session = Session(id=1, room_id=1, title="Session", current_slide_index=0)
+        participants = [participant(1)]
+        events = [
+            LearningEvent(
+                id=8,
+                session_id=1,
+                participant_id=1,
+                slide_index=0,
+                type="auto_slide_sync",
+                payload={"sync_id": "pending", "delivery_status": "pending"},
+                created_at=NOW,
+            ),
+            LearningEvent(
+                id=9,
+                session_id=1,
+                participant_id=1,
+                slide_index=0,
+                type="auto_slide_sync",
+                payload={"sync_id": "done", "delivery_status": "emitted"},
+                created_at=NOW,
+            ),
+        ]
+        runtime = {
+            "session_id": 1,
+            "lecturer_slide_index": 0,
+            "timeout_seconds": 300,
+            "tracked_students": 1,
+            "connected_students": 1,
+            "aligned_students": 1,
+            "out_of_sync_students": 0,
+        }
+
+        with patch(
+            "app.routers.assistant.realtime.slide_tracking_summary",
+            return_value=runtime,
+        ):
+            aggregate = _tracking_aggregate(session, participants, events)
+
+        self.assertEqual(aggregate["auto_synced_total"], 1)
 
 
 if __name__ == "__main__":

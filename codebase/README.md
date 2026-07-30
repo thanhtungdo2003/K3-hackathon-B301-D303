@@ -36,9 +36,11 @@ backend/                    FastAPI + Socket.IO + SQLAlchemy (SQLite)
       rooms.py              phòng học (mã 5 ký tự), bắt đầu / kết thúc buổi
       teaching.py           Bục Giảng: chuyển slide, mở câu hỏi, dashboard, Advisor
       assistant.py          dữ liệu tổng hợp cho giao diện Trợ giảng (JWT chủ phòng)
+      assistant_chat.py     trợ lý AI thao tác dashboard bằng tool
       insights.py           tổng quan chủ phòng + chất lượng theo từng slide
       student.py            học viên vào bằng mã, trả lời, tín hiệu, xin gợi ý
     modules/
+      agent_tools.py        tool backend cho trợ lý AI của dashboard
       slide_import.py       đọc file .pptx thật thành block để vẽ lên canvas
       slide_tracking.py     theo dõi lệch slide + timeout tự đồng bộ
       assessment.py         [RULE] chấm câu trả lời
@@ -125,7 +127,8 @@ slide mới nhất trong DB, ghi audit `auto_slide_sync`, rồi chỉ gửi tớ
     "slide_index": 7,
     "from_slide_index": 4,
     "reason": "slide_mismatch_timeout",
-    "mismatch_seconds": 300
+    "mismatch_seconds": 300,
+    "sync_id": "<idempotency-key>"
   }
 }
 ```
@@ -133,7 +136,9 @@ slide mới nhất trong DB, ghi audit `auto_slide_sync`, rồi chỉ gửi tớ
 Mốc lệch không bị đặt lại khi học viên chuyển sang một slide sai khác hoặc giảng viên
 đổi slide nhưng hai bên vẫn lệch. Timer bị huỷ khi hai bên trùng slide, học viên bật
 follow, socket cuối cùng ngắt kết nối hoặc buổi học kết thúc. Thời gian mặc định là
-300 giây và có thể đổi bằng `AGORA_SLIDE_SYNC_TIMEOUT_SECONDS`.
+300 giây và có thể đổi bằng `AGORA_SLIDE_SYNC_TIMEOUT_SECONDS`. Mỗi tab/socket được
+theo dõi riêng; nếu một tab vẫn lệch thì tab khác đang đúng không che mất timer.
+Frontend nên dùng `sync_id` để bỏ qua event lặp khi Socket.IO phải retry sau lỗi mạng.
 
 Để nhận `slide_tracking_summary`, socket phía giảng viên join với payload cũ kèm JWT:
 

@@ -227,7 +227,12 @@ def _tracking_aggregate(
         "unknown_students": max(0, online_students - tracked),
         "tracking_coverage": _rate(tracked, online_students),
         "auto_synced_total": len(
-            [event for event in events if event.type == "auto_slide_sync"]
+            [
+                event
+                for event in events
+                if event.type == "auto_slide_sync"
+                and event.payload.get("delivery_status") == "emitted"
+            ]
         ),
     }
 
