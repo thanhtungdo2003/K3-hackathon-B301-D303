@@ -24,6 +24,7 @@ import {
   Button,
   Empty,
   Layout,
+  Space,
   Spin,
   Tag,
   Tooltip,
@@ -339,30 +340,27 @@ export default function LecternPage() {
             Trợ giảng
           </Button>
           <Tooltip title="Học viên đang trong phòng">
-            <Tag icon={<TeamOutlined />}>{metrics?.online_students ?? 0}</Tag>
+            <span
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-sm font-extrabold"
+              style={{ background: "rgba(255,255,255,.16)", color: "#fff" }}
+            >
+              <TeamOutlined />
+              {metrics?.online_students ?? 0}
+            </span>
           </Tooltip>
+          <Button icon={<BulbOutlined />} loading={asking} onClick={askAdvisor} disabled={ended}>
+            Xin gợi ý
+          </Button>
           <Button
-            icon={<BulbOutlined />}
-            loading={asking}
-            onClick={askAdvisor}
+            type="primary"
+            danger
+            icon={<PoweroffOutlined />}
+            onClick={endSession}
             disabled={ended}
           >
-            <TeamOutlined />
-            {metrics?.online_students ?? 0}
-          </span>
-        </Tooltip>
-        <Button icon={<BulbOutlined />} loading={asking} onClick={askAdvisor} disabled={ended}>
-          Xin gợi ý
-        </Button>
-        <Button
-          type="primary"
-          danger
-          icon={<PoweroffOutlined />}
-          onClick={endSession}
-          disabled={ended}
-        >
-          Kết thúc
-        </Button>
+            Kết thúc
+          </Button>
+        </Space>
       </Header>
 
       <Content style={{ padding: 16, minWidth: 0 }}>
