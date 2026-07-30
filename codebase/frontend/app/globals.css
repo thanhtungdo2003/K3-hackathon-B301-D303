@@ -29,7 +29,10 @@
  * Chỉ áp trong `.ai-shell` để phần dành cho học viên giữ nguyên tông sáng cũ.
  */
 .ai-shell {
+  /* --ai-navy dùng làm MÀU CHỮ/nét; --ai-navy-surface dùng làm MÀU NỀN đặc.
+     Hai thứ phải tách nhau: ở chế độ tối màu chữ phải sáng lên còn nền phải tối đi. */
   --ai-navy: #0b2e63;
+  --ai-navy-surface: #0b2e63;
   --ai-navy-soft: #123e8c;
   --ai-blue: #1d4ed8;
   --ai-blue-tint: #eaf1ff;
@@ -47,6 +50,7 @@
 
 .dark .ai-shell {
   --ai-navy: #9dc0ff;
+  --ai-navy-surface: #14243f;
   --ai-navy-soft: #6f9df0;
   --ai-blue: #4d8bff;
   --ai-blue-tint: #16233c;
@@ -90,6 +94,83 @@ body {
   }
 }
 
+/* ── Chế độ trình chiếu ──────────────────────────────────────────────────── */
+
+/**
+ * Chiếm trọn cửa sổ và cắt hẳn mọi thứ tràn ra — slide đi vào/đi ra bằng
+ * transform nên nếu không cắt sẽ thấy thanh cuộn nhấp nháy lúc chuyển.
+ */
+.agora-present-root {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #0b0d12;
+}
+
+.agora-present-stage {
+  position: absolute;
+  inset: 0;
+  /* Con trỏ hệ thống bị tắt hẳn; chevron là một phần tử DOM để còn mờ dần được. */
+  cursor: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Mỗi slide là một lớp trượt ngang. */
+.agora-present-layer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  will-change: transform;
+}
+
+.agora-present-layer[data-animate="true"] {
+  transition: transform 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/**
+ * Chevron bám theo chuột.
+ *
+ * Nền phải tối đặc: slide thường là nền trắng, mũi tên trắng sẽ biến mất hoàn
+ * toàn trên đó. Tối trên trắng và trên viền đen đều đọc được.
+ */
+.agora-present-cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  margin: -30px 0 0 -30px;
+  border-radius: 999px;
+  background: rgba(11, 20, 36, 0.72);
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.35);
+  color: #ffffff;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 320ms ease, transform 140ms ease;
+}
+
+.agora-present-cursor[data-visible="true"] {
+  opacity: 1;
+}
+
+/* Ở vùng giữa không có mũi tên — chỉ còn một chấm nhỏ cho biết chuột ở đâu. */
+.agora-present-cursor[data-zone="center"] {
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  background: rgba(11, 20, 36, 0.55);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
+}
+
+.agora-present-cursor[data-pressed="true"] {
+  transform: scale(0.88);
+}
+
 /* ── Bento cho dashboard ─────────────────────────────────────────────────── */
 
 .bento {
@@ -117,14 +198,13 @@ body {
 
 /* Ô nhấn: nền xanh đậm đặc, chữ trắng — dùng cho một ô duy nhất mỗi hàng. */
 .bento-card--navy {
-  background: var(--ai-navy);
-  border-color: var(--ai-navy);
+  background: var(--ai-navy-surface);
+  border-color: var(--ai-navy-surface);
   color: #ffffff;
 }
 
 .dark .bento-card--navy {
-  background: #14243f;
-  border-color: #24314c;
+  border-color: var(--ai-line);
   color: var(--ai-ink);
 }
 

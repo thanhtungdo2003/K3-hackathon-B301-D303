@@ -9,13 +9,98 @@ import ThemeToggle from "@/components/ThemeToggle";
 import { AVATARS, Icon } from "@/components/icons";
 import { api } from "@/lib/api";
 import { useLearner } from "@/lib/store";
+import { RefreshCcw, Rotate3D } from "lucide-react";
+
+const randoneName = () => {
+  const names = [
+    "Panda",
+    "Tiger",
+    "Lion",
+    "Elephant",
+    "Giraffe",
+    "Zebra",
+    "Monkey",
+    "Koala",
+    "Kangaroo",
+    "Penguin",
+    "Dolphin",
+    "Whale",
+    "Shark",
+    "Octopus",
+    "Crab",
+    "Lobster",
+    "Seahorse",
+    "Starfish",
+    "Butterfly",
+    "Bee",
+    "Ladybug",
+    "Dragonfly",
+    "Caterpillar",
+    "Snail",
+    "Frog",
+    "Turtle",
+    "Snake",
+    "Lizard",
+    "Chameleon",
+    "Parrot",
+    "Eagle",
+    "Owl",
+    "Hawk",
+    "Falcon",
+    "Peacock",
+    "Flamingo",
+    "Swan",
+    "Duck",
+    "Goose",
+    "Chicken",
+    "Rooster",
+    "Turkey",
+    "Pigeon",
+    "Seagull",
+    "Crow",
+    "Raven",
+    "Magpie",
+    "Woodpecker",
+    "Hummingbird",
+    "Bat",
+    "Fox",
+    "Wolf",
+    "Bear",
+    "Deer",
+    "Moose",
+    "Bison",
+    "Buffalo",
+    "Camel",
+    "Horse",
+    "Donkey",
+    "Sheep",
+    "Goat",
+    "Pig",
+    "Rabbit",
+    "Squirrel",
+    "Chipmunk",
+    "Raccoon",
+    "Skunk",
+    "Otter",
+    "Beaver",
+    "Hedgehog",
+    "Mole",
+    "Weasel",
+    "Ferret",
+    "Armadillo",
+    "Porcupine",
+    "Opossum",
+  ];
+  const numRandom = Math.floor(Math.random() * 1000);
+  return names[Math.floor(Math.random() * names.length)] + numRandom;
+}
 
 export default function JoinPage() {
   const router = useRouter();
   const setProfile = useLearner((s) => s.setProfile);
 
   const [code, setCode] = useState("");
-  const [name, setName] = useState("");
+  const [name, setName] = useState(randoneName());
   const [avatar, setAvatar] = useState<string>("paw");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -82,18 +167,28 @@ export default function JoinPage() {
             <Icon.person aria-hidden size={15} strokeWidth={2.8} />
             Tên hiển thị
           </span>
-          <BlockInput
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Tên bạn muốn lớp thấy"
-            maxLength={40}
-          />
+          <div className="flex gap-2">
+            <BlockInput
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Tên bạn muốn lớp thấy"
+              maxLength={40}
+            />
+            <BlockButton
+              type="button"
+              tone="grape"
+              onClick={() => setName(randoneName())}
+              title="Tạo tên ngẫu nhiên"
+            >
+              <RefreshCcw aria-hidden size={20} strokeWidth={2.4} />
+            </BlockButton>
+          </div>
         </label>
 
         <div>
           <span className="mb-2 flex items-center gap-2 text-xs font-extrabold uppercase tracking-widest text-muted">
             <Icon.mask aria-hidden size={15} strokeWidth={2.8} />
-            Ảnh đại diện
+            Avatar
           </span>
           <div className="grid grid-cols-4 gap-2">
             {AVATARS.map((a) => {
@@ -107,9 +202,8 @@ export default function JoinPage() {
                   aria-pressed={on}
                   aria-label={a.label}
                   title={a.label}
-                  className={`grid h-16 place-items-center rounded-blk border-2 border-b-4 transition-transform active:translate-y-[3px] active:border-b-[1px] ${
-                    on ? "border-sky-deep bg-sky/15 text-sky" : "border-line bg-surface text-muted"
-                  }`}
+                  className={`grid h-16 place-items-center rounded-blk border-2 border-b-4 transition-transform active:translate-y-[3px] active:border-b-[1px] ${on ? "border-sky-deep bg-sky/15 text-sky" : "border-line bg-surface text-muted"
+                    }`}
                 >
                   <Glyph aria-hidden size={26} strokeWidth={2.4} />
                 </button>

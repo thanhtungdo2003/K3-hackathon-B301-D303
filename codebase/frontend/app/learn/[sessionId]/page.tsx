@@ -542,7 +542,7 @@ export default function LearnPage() {
       if (!profile) return;
       api
         .recordEvent(sessionId, { token: profile.token, type, slide_index: index, payload })
-        .catch(() => {});
+        .catch(() => { });
     },
     [profile, sessionId, index],
   );
@@ -599,7 +599,7 @@ export default function LearnPage() {
 
   async function sendHint(text: string) {
     if (!profile || !hints?.id) return;
-    await api.sendHint(sessionId, hints.id, { token: profile.token, question: text }).catch(() => {});
+    await api.sendHint(sessionId, hints.id, { token: profile.token, question: text }).catch(() => { });
     setHints(null);
   }
 
@@ -664,7 +664,7 @@ export default function LearnPage() {
   }
 
   function leave() {
-    if (profile) api.leave(sessionId, profile.token).catch(() => {});
+    if (profile) api.leave(sessionId, profile.token).catch(() => { });
     setProfile(null);
     router.replace("/join");
   }
@@ -694,7 +694,7 @@ export default function LearnPage() {
     result?.correct === true ? Icon.correct : result?.correct === false ? Icon.wrong : Icon.skip;
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col gap-4 px-4 py-5">
+    <main className={`mx-auto flex min-h-screen w-full ${question ? "max-w-6xl" : "max-w-3xl"} flex-col gap-4 px-4 py-5`}>
       <header className="flex items-center gap-3">
         <span
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-blk border-2 border-line bg-sunken"
@@ -725,309 +725,254 @@ export default function LearnPage() {
           onClick={leave}
         />
       </header>
+      <div className="flex gap-2">
+        <div className="flex flex-1 flex-col gap-4">
+          {ended ? (
+            <BlockCard className="flex items-center gap-3 p-4">
+              <Icon.waiting aria-hidden size={24} strokeWidth={2.5} className="shrink-0 text-muted" />
+              <p className="text-sm font-bold">Buổi học đã kết thúc. Bạn vẫn xem lại slide được.</p>
+            </BlockCard>
+          ) : null}
 
-      {ended ? (
-        <BlockCard className="flex items-center gap-3 p-4">
-          <Icon.waiting aria-hidden size={24} strokeWidth={2.5} className="shrink-0 text-muted" />
-          <p className="text-sm font-bold">Buổi học đã kết thúc. Bạn vẫn xem lại slide được.</p>
-        </BlockCard>
-      ) : null}
+          {slide ? (
+            <SlideCanvas slide={slide} total={slides.length} />
+          ) : (
+            <BlockCard className="flex h-56 items-center justify-center text-muted">
+              <Icon.waiting aria-label="Đang tải slide" size={40} strokeWidth={2.2} />
+            </BlockCard>
+          )}
 
-      {syncNotice ? (
-        <BlockCard
-          className={`flex animate-pop items-start gap-3 p-4 ${
-            syncNotice.kind === "synced"
-              ? "border-sky-deep bg-sky/10"
-              : "border-sun-deep bg-sun/10"
-          }`}
-        >
-          <Icon.link
-            aria-hidden
-            size={22}
-            strokeWidth={2.6}
-            className={`mt-0.5 shrink-0 ${
-              syncNotice.kind === "synced" ? "text-sky" : "text-flame"
-            }`}
-          />
-          <div className="min-w-0 flex-1">
-            <p
-              className={`text-sm font-extrabold ${
-                syncNotice.kind === "synced" ? "text-sky" : "text-flame"
-              }`}
-            >
-              {syncNotice.text}
-            </p>
-            <p className="mt-1 text-xs font-bold text-muted">
-              {syncNotice.kind === "synced"
-                ? "Bạn đang bám theo màn hình của giảng viên."
-                : "Bạn vẫn có thể xem slide; trạng thái sẽ được khôi phục khi kết nối lại."}
-            </p>
-          </div>
-          <button
-            onClick={() => setSyncNotice(null)}
-            aria-label="Đóng thông báo đồng bộ"
-            className="text-muted"
-          >
-            <Icon.close aria-hidden size={18} strokeWidth={2.6} />
-          </button>
-        </BlockCard>
-      ) : null}
-
-      {slide ? (
-        <SlideCanvas slide={slide} total={slides.length} />
-      ) : (
-        <BlockCard className="flex h-56 items-center justify-center text-muted">
-          <Icon.waiting aria-label="Đang tải slide" size={40} strokeWidth={2.2} />
-        </BlockCard>
-      )}
-
-      <div className="flex items-center gap-2">
-        <BlockButton
-          square
-          tone="plain"
-          aria-label="Slide trước"
-          icon={Icon.prev}
-          onClick={() => go(-1)}
-          disabled={slideControlsLocked}
-        />
-        <BlockButton
-          square
-          tone="plain"
-          aria-label="Slide sau"
-          icon={Icon.next}
-          onClick={() => go(1)}
-          disabled={slideControlsLocked}
-        />
-        <BlockButton
-          tone={follow ? "sky" : "plain"}
-          onClick={toggleFollow}
-          icon={follow ? Icon.link : Icon.unlink}
-          aria-pressed={follow}
-          className="flex-1 text-sm"
-          disabled={slideControlsLocked}
-        >
-          {follow ? "Đang bám giảng viên" : "Tự đọc"}
-        </BlockButton>
-        <BlockButton
-          square
-          tone={handRaised ? "sun" : "plain"}
-          aria-label="Giơ tay"
-          title="Giơ tay"
-          icon={Icon.hand}
-          onClick={raiseHand}
-        />
-        <BlockButton
-          square
-          tone="grape"
-          aria-label="Gợi ý câu để hỏi"
-          title="Gợi ý câu để hỏi"
-          icon={Icon.idea}
-          onClick={askForHints}
-          disabled={hintBusy}
-        />
-      </div>
-
-      {behind !== 0 && !ended ? (
-        <button
-          onClick={toggleFollow}
-          disabled={slideControlsLocked}
-          className="flex items-center justify-center gap-2 rounded-blk border-2 border-b-4 border-sky-deep bg-sky/10 px-4 py-3 text-sm font-extrabold text-sky disabled:cursor-wait disabled:opacity-60"
-        >
-          <Icon.unlink aria-hidden size={18} strokeWidth={2.6} />
-          <span>
-            Giảng viên đang ở slide {lecturerIndex + 1} — bấm để quay lại
-            {syncRemaining !== null
-              ? syncRemaining > 0
-                ? ` · tự đồng bộ sau ${formatDuration(syncRemaining)}`
-                : " · đang chờ máy chủ đồng bộ"
-              : trackingActive === false
-                ? " · tự đồng bộ đang tạm dừng vì mất kết nối"
-                : syncTimeoutSeconds
-                  ? ` · đang xác nhận bộ đếm ${formatDuration(syncTimeoutSeconds)}`
-                  : " · đang xác nhận trạng thái tracking"}
-          </span>
-        </button>
-      ) : null}
-
-      {hints ? (
-        <BlockCard className="flex animate-pop flex-col gap-3 p-5">
           <div className="flex items-center gap-2">
-            <Icon.idea aria-hidden size={22} strokeWidth={2.5} className="text-grape" />
-            <p className="text-sm font-extrabold uppercase tracking-wide text-muted">
-              Chọn một câu để gửi giảng viên
-            </p>
-            <button
-              onClick={() => setHints(null)}
-              aria-label="Đóng gợi ý"
-              className="ml-auto text-muted"
+            <BlockButton
+              square
+              tone="plain"
+              aria-label="Slide trước"
+              icon={Icon.prev}
+              onClick={() => go(-1)}
+            />
+            <BlockButton
+              square
+              tone="plain"
+              aria-label="Slide sau"
+              icon={Icon.next}
+              onClick={() => go(1)}
+            />
+            <BlockButton
+              tone={follow ? "sky" : "plain"}
+              onClick={toggleFollow}
+              icon={follow ? Icon.link : Icon.unlink}
+              aria-pressed={follow}
+              className="flex-1 text-sm"
             >
-              <Icon.close aria-hidden size={20} strokeWidth={2.6} />
+              {follow ? "Đang theo dõi giảng viên" : "Tự đọc"}
+            </BlockButton>
+            <BlockButton
+              square
+              tone={handRaised ? "sun" : "plain"}
+              aria-label="Giơ tay"
+              title="Giơ tay"
+              icon={Icon.hand}
+              onClick={raiseHand}
+            />
+            <BlockButton
+              square
+              tone="grape"
+              aria-label="Gợi ý câu để hỏi"
+              title="Gợi ý câu để hỏi"
+              icon={Icon.idea}
+              onClick={askForHints}
+              disabled={hintBusy}
+            />
+          </div>
+
+          {behind !== 0 ? (
+            <button
+              onClick={toggleFollow}
+              className="flex items-center justify-center gap-2 rounded-blk border-2 border-b-4 border-sky-deep bg-sky/10 px-4 py-3 text-sm font-extrabold text-sky"
+            >
+              <Icon.unlink aria-hidden size={18} strokeWidth={2.6} />
+              Giảng viên đang ở slide {lecturerIndex + 1} — bấm để quay lại
             </button>
-          </div>
-          {hints.questions.length === 0 ? (
-            <p className="text-sm font-bold text-muted">
-              Chưa gợi ý được lúc này. Bạn cứ tự viết câu hỏi và giơ tay nhé.
-            </p>
-          ) : (
-            hints.questions.map((q, i) => (
-              <button
-                key={i}
-                onClick={() => sendHint(q)}
-                className="rounded-blk border-2 border-b-4 border-line bg-sunken px-4 py-3 text-left text-sm font-bold transition-transform active:translate-y-[3px] active:border-b-[1px]"
-              >
-                {q}
-              </button>
-            ))
-          )}
-        </BlockCard>
-      ) : null}
+          ) : null}
 
-      {question ? (
-        <BlockCard className="flex animate-pop flex-col gap-4 p-5">
-          <div className="flex items-start gap-3">
-            <Icon.question
-              aria-hidden
-              size={28}
-              strokeWidth={2.4}
-              className="mt-0.5 shrink-0 text-grape"
-            />
-            <p className="text-lg font-extrabold">{question.prompt}</p>
-          </div>
-
-          {question.type === "fill_blank" ? (
-            <input
-              value={typed}
-              onChange={(e) => setTyped(e.target.value)}
-              disabled={!!result}
-              placeholder="Nhập câu trả lời"
-              className="blk-input"
-            />
-          ) : question.type === "ordering" ? (
-            <div className="flex flex-col gap-2">
-              {ordering.map((item, i) => (
-                <div
-                  key={item}
-                  className="flex items-center gap-2 rounded-blk border-2 border-b-4 border-line bg-sunken px-3 py-2"
+          {hints ? (
+            <BlockCard className="flex animate-pop flex-col gap-3 p-5">
+              <div className="flex items-center gap-2">
+                <Icon.idea aria-hidden size={22} strokeWidth={2.5} className="text-grape" />
+                <p className="text-sm font-extrabold uppercase tracking-wide text-muted">
+                  Chọn một câu để gửi giảng viên
+                </p>
+                <button
+                  onClick={() => setHints(null)}
+                  aria-label="Đóng gợi ý"
+                  className="ml-auto text-muted"
                 >
-                  <span className="w-6 text-center text-sm font-extrabold text-muted">{i + 1}</span>
-                  <span className="flex-1 text-sm font-bold">{item}</span>
+                  <Icon.close aria-hidden size={20} strokeWidth={2.6} />
+                </button>
+              </div>
+              {hints.questions.length === 0 ? (
+                <p className="text-sm font-bold text-muted">
+                  Chưa gợi ý được lúc này. Bạn cứ tự viết câu hỏi và giơ tay nhé.
+                </p>
+              ) : (
+                hints.questions.map((q, i) => (
                   <button
-                    onClick={() => moveItem(i, i - 1)}
-                    disabled={i === 0 || !!result}
-                    aria-label="Đưa lên trên"
-                    className="text-muted disabled:opacity-30"
+                    key={i}
+                    onClick={() => sendHint(q)}
+                    className="rounded-blk border-2 border-b-4 border-line bg-sunken px-4 py-3 text-left text-sm font-bold transition-transform active:translate-y-[3px] active:border-b-[1px]"
                   >
-                    <Icon.prev aria-hidden size={20} strokeWidth={2.6} className="-rotate-90" />
+                    {q}
                   </button>
-                  <button
-                    onClick={() => moveItem(i, i + 1)}
-                    disabled={i === ordering.length - 1 || !!result}
-                    aria-label="Đưa xuống dưới"
-                    className="text-muted disabled:opacity-30"
-                  >
-                    <Icon.next aria-hidden size={20} strokeWidth={2.6} className="rotate-90" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {question.options.map((opt) => {
-                const on = picked.includes(opt);
-                return (
-                  <button
-                    key={opt}
-                    onClick={() => pick(opt)}
-                    disabled={!!result}
-                    aria-pressed={on}
-                    className={`rounded-blk border-2 border-b-4 px-4 py-3 text-left text-base font-bold transition-transform active:translate-y-[3px] active:border-b-[1px] disabled:opacity-60 ${
-                      on ? "border-sky-deep bg-sky/15 text-sky" : "border-line bg-sunken text-ink"
-                    }`}
-                  >
-                    {opt}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+                ))
+              )}
+            </BlockCard>
+          ) : null}
+        </div>
 
-          {result ? (
-            <div
-              className={`flex items-start gap-3 rounded-blk border-2 border-b-4 px-4 py-3 ${
-                result.correct === true
+        {question ? (
+          <BlockCard className="flex animate-pop flex-col gap-4 p-5">
+            <div className="flex items-start gap-3">
+              <Icon.question
+                aria-hidden
+                size={28}
+                strokeWidth={2.4}
+                className="mt-0.5 shrink-0 text-grape"
+              />
+              <p className="text-lg font-extrabold">{question.prompt}</p>
+            </div>
+
+            {question.type === "fill_blank" ? (
+              <input
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                disabled={!!result}
+                placeholder="Nhập câu trả lời"
+                className="blk-input"
+              />
+            ) : question.type === "ordering" ? (
+              <div className="flex flex-col gap-2">
+                {ordering.map((item, i) => (
+                  <div
+                    key={item}
+                    className="flex items-center gap-2 rounded-blk border-2 border-b-4 border-line bg-sunken px-3 py-2"
+                  >
+                    <span className="w-6 text-center text-sm font-extrabold text-muted">{i + 1}</span>
+                    <span className="flex-1 text-sm font-bold">{item}</span>
+                    <button
+                      onClick={() => moveItem(i, i - 1)}
+                      disabled={i === 0 || !!result}
+                      aria-label="Đưa lên trên"
+                      className="text-muted disabled:opacity-30"
+                    >
+                      <Icon.prev aria-hidden size={20} strokeWidth={2.6} className="-rotate-90" />
+                    </button>
+                    <button
+                      onClick={() => moveItem(i, i + 1)}
+                      disabled={i === ordering.length - 1 || !!result}
+                      aria-label="Đưa xuống dưới"
+                      className="text-muted disabled:opacity-30"
+                    >
+                      <Icon.next aria-hidden size={20} strokeWidth={2.6} className="rotate-90" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {question.options.map((opt) => {
+                  const on = picked.includes(opt);
+                  return (
+                    <button
+                      key={opt}
+                      onClick={() => pick(opt)}
+                      disabled={!!result}
+                      aria-pressed={on}
+                      className={`rounded-blk border-2 border-b-4 px-4 py-3 text-left text-base font-bold transition-transform active:translate-y-[3px] active:border-b-[1px] disabled:opacity-60 ${on ? "border-sky-deep bg-sky/15 text-sky" : "border-line bg-sunken text-ink"
+                        }`}
+                    >
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {result ? (
+              <div
+                className={`flex items-start gap-3 rounded-blk border-2 border-b-4 px-4 py-3 ${result.correct === true
                   ? "border-grass-deep bg-grass/10"
                   : result.correct === false
                     ? "border-cherry-deep bg-cherry/10"
                     : "border-line bg-sunken"
-              }`}
-            >
-              <ResultIcon
-                aria-hidden
-                size={24}
-                strokeWidth={2.6}
-                className={`mt-0.5 shrink-0 ${
-                  result.correct === true
+                  }`}
+              >
+                <ResultIcon
+                  aria-hidden
+                  size={24}
+                  strokeWidth={2.6}
+                  className={`mt-0.5 shrink-0 ${result.correct === true
                     ? "text-grass"
                     : result.correct === false
                       ? "text-cherry"
                       : "text-muted"
-                }`}
-              />
-              <p className="text-sm font-bold">
-                {result.explanation ??
-                  (result.correct === true
-                    ? "Chính xác."
-                    : result.correct === false
-                      ? "Chưa đúng — nghe giảng viên chốt lại nhé."
-                      : result.correct === null
-                        ? "Đã ghi nhận."
-                        : "Đã bỏ qua.")}
-              </p>
-            </div>
-          ) : (
-            <>
-              <p className="text-center text-xs font-extrabold uppercase tracking-wide text-muted">
-                Bạn chắc chắn tới đâu?
-              </p>
-              <div className="grid grid-cols-3 gap-2">
-                <BlockButton
-                  tone="cherry"
-                  icon={Icon.unsure}
-                  disabled={!answerReady}
-                  onClick={() => submit(1)}
-                  className="text-xs"
-                >
-                  Chưa chắc
-                </BlockButton>
-                <BlockButton
-                  tone="sun"
-                  icon={Icon.okay}
-                  disabled={!answerReady}
-                  onClick={() => submit(2)}
-                  className="text-xs"
-                >
-                  Tạm ổn
-                </BlockButton>
-                <BlockButton
-                  tone="grass"
-                  icon={Icon.sure}
-                  disabled={!answerReady}
-                  onClick={() => submit(3)}
-                  className="text-xs"
-                >
-                  Chắc chắn
-                </BlockButton>
+                    }`}
+                />
+                <p className="text-sm font-bold">
+                  {result.explanation ??
+                    (result.correct === true
+                      ? "Chính xác."
+                      : result.correct === false
+                        ? "Chưa đúng — nghe giảng viên chốt lại nhé."
+                        : result.correct === null
+                          ? "Đã ghi nhận."
+                          : "Đã bỏ qua.")}
+                </p>
               </div>
-              <button
-                onClick={skip}
-                className="mx-auto flex items-center gap-1 text-xs font-extrabold uppercase tracking-wide text-muted underline-offset-4 hover:underline"
-              >
-                <Icon.skip aria-hidden size={14} strokeWidth={2.6} /> Bỏ qua câu này
-              </button>
-            </>
-          )}
-        </BlockCard>
-      ) : null}
+            ) : (
+              <>
+                <p className="text-center text-xs font-extrabold uppercase tracking-wide text-muted">
+                  Bạn chắc chắn tới đâu?
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  <BlockButton
+                    tone="cherry"
+                    icon={Icon.unsure}
+                    disabled={!answerReady}
+                    onClick={() => submit(1)}
+                    className="text-xs"
+                  >
+                    Chưa chắc
+                  </BlockButton>
+                  <BlockButton
+                    tone="sun"
+                    icon={Icon.okay}
+                    disabled={!answerReady}
+                    onClick={() => submit(2)}
+                    className="text-xs"
+                  >
+                    Tạm ổn
+                  </BlockButton>
+                  <BlockButton
+                    tone="grass"
+                    icon={Icon.sure}
+                    disabled={!answerReady}
+                    onClick={() => submit(3)}
+                    className="text-xs"
+                  >
+                    Chắc chắn
+                  </BlockButton>
+                </div>
+                <button
+                  onClick={skip}
+                  className="mx-auto flex items-center gap-1 text-xs font-extrabold uppercase tracking-wide text-muted underline-offset-4 hover:underline"
+                >
+                  <Icon.skip aria-hidden size={14} strokeWidth={2.6} /> Bỏ qua câu này
+                </button>
+              </>
+            )}
+          </BlockCard>
+        ) : null}
+      </div>
     </main>
   );
 }

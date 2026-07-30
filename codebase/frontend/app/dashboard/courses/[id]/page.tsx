@@ -350,7 +350,7 @@ export default function CourseDetailPage() {
                             onClick={() => setActive(i)}
                             className="mb-1 flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors"
                             style={{
-                              background: on ? "var(--ai-navy)" : "transparent",
+                              background: on ? "var(--ai-navy-surface)" : "transparent",
                               color: on ? "#fff" : "var(--ai-ink)",
                             }}
                           >
@@ -454,7 +454,7 @@ export default function CourseDetailPage() {
                                 >
                                   <span
                                     className="grid h-6 w-6 shrink-0 place-items-center rounded-lg text-[11px] font-extrabold"
-                                    style={{ background: "var(--ai-navy)", color: "#fff" }}
+                                    style={{ background: "var(--ai-navy-surface)", color: "#fff" }}
                                   >
                                     {i + 1}
                                   </span>
