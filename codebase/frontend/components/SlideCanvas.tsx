@@ -237,12 +237,15 @@ export default function SlideCanvas({
   pageLabel,
   dark,
   total,
+  fill,
 }: {
   slide?: SlideLike;
   blocks?: SlideBlock[];
   pageLabel?: string;
   dark?: boolean;
   total?: number;
+  /** Chế độ trình chiếu: lấp đầy khung cha, bỏ viền và bo góc. */
+  fill?: boolean;
 }) {
   const theme = useTheme();
   const isDark = dark ?? theme.dark;
@@ -266,6 +269,18 @@ export default function SlideCanvas({
     ctx.textBaseline = "alphabetic";
     draw(ctx, drawnBlocks, isDark ? DARK : LIGHT, label);
   }, [drawnBlocks, label, isDark]);
+
+  if (fill) {
+    return (
+      <canvas
+        ref={ref}
+        role="img"
+        aria-label={label}
+        className="block h-full w-full"
+        style={{ aspectRatio: `${W} / ${H}` }}
+      />
+    );
+  }
 
   return (
     <canvas

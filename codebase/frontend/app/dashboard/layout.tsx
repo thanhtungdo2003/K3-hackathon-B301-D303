@@ -122,7 +122,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             }}
           >
             <button className="flex items-center gap-2">
-              <Avatar style={{ backgroundColor: "var(--ai-navy)" }}>{initials}</Avatar>
+              <Avatar style={{ backgroundColor: "var(--ai-navy-surface)" }}>{initials}</Avatar>
               <span className="hidden font-bold sm:inline" style={{ color: "var(--ai-ink)" }}>
                 {user.full_name}
               </span>

@@ -220,7 +220,7 @@ export default function AiDashboard() {
                   >
                     <span
                       className="rounded-lg px-2 py-0.5 text-xs font-extrabold tabular-nums"
-                      style={{ background: "var(--ai-navy)", color: "#fff", letterSpacing: 2 }}
+                      style={{ background: "var(--ai-navy-surface)", color: "#fff", letterSpacing: 2 }}
                     >
                       {s.room_code}
                     </span>
