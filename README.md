@@ -84,8 +84,10 @@ npm run dev
 4. **Phòng học** → tạo phòng → đọc **mã 5 ký tự** cho lớp → **Bắt đầu buổi học**.
 5. Học viên mở <http://localhost:3000/join> trên máy khác, gõ mã + tên + chọn avatar. Không cần tài khoản.
 6. Ở Bục Giảng: chuyển slide (lớp tự chuyển theo) → **Mở câu hỏi** khi thấy đúng lúc → học viên trả lời kèm mức tự tin.
-7. Bấm **Xin gợi ý**: đủ dữ liệu và lớp đang tắc thì popup cảnh báo bật lên; thiếu dữ liệu thì hệ thống nói thẳng là chưa đủ dữ liệu.
-8. **Tổng quan** và tab **Chất lượng** của khoá học tổng hợp lại sau buổi.
+7. Mở **Trợ giảng** từ Bục Giảng hoặc thẻ phòng đang hoạt động để theo dõi nhịp hiểu bài, yêu cầu hỗ trợ ẩn danh và trạng thái đồng bộ slide theo thời gian thực.
+8. Khi học viên tự đọc ở slide khác liên tục quá 5 phút, backend phát lệnh đưa màn hình học viên về slide mới nhất của giảng viên.
+9. Bấm **Xin gợi ý**: đủ dữ liệu và lớp đang tắc thì popup cảnh báo bật lên; thiếu dữ liệu thì hệ thống nói thẳng là chưa đủ dữ liệu.
+10. **Tổng quan** và tab **Chất lượng** của khoá học tổng hợp lại sau buổi.
 
 ---
 

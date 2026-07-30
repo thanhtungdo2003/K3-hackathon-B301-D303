@@ -11,6 +11,7 @@ import {
   LeftOutlined,
   MessageOutlined,
   PoweroffOutlined,
+  RadarChartOutlined,
   RightOutlined,
   TeamOutlined,
 } from "@ant-design/icons";
@@ -47,8 +48,8 @@ import {
   type SlideOut,
   type TeachingDashboard,
 } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
-import { joinRoom } from "@/lib/socket";
+import { getToken, useAuth } from "@/lib/auth";
+import { joinLecturerSession } from "@/lib/socket";
 
 const { Header, Content } = Layout;
 const pct = (v: number) => `${Math.round(v * 100)}%`;
@@ -120,8 +121,11 @@ export default function LecternPage() {
 
   // Realtime: mỗi tín hiệu từ lớp đều kéo lại số liệu.
   useEffect(() => {
-    if (!session) return;
-    const socket = joinRoom(sessionId, "lecturer");
+    if (!session || !user) return;
+    const token = getToken();
+    if (!token) return;
+    const handle = joinLecturerSession(sessionId, token);
+    const { socket } = handle;
     const bump = () => void refresh();
     const onAdvice = (payload: Advice) => {
       if (payload.should_alert) setPopup(payload);
@@ -131,20 +135,23 @@ export default function LecternPage() {
     socket.on("signal", bump);
     socket.on("roster_changed", bump);
     socket.on("advice", onAdvice);
+    socket.on("session_ended", bump);
     return () => {
       socket.off("answer_received", bump);
       socket.off("signal", bump);
       socket.off("roster_changed", bump);
       socket.off("advice", onAdvice);
+      socket.off("session_ended", bump);
+      handle.dispose();
     };
-  }, [session, sessionId, refresh]);
+  }, [session, user, sessionId, refresh]);
 
   // Nhịp nền: lớp đông thì socket đủ, nhưng vẫn đồng bộ lại mỗi 12s cho chắc.
   useEffect(() => {
-    if (!session || board?.ended) return;
+    if (!session || !user || board?.ended) return;
     const timer = window.setInterval(() => void refresh(), 12000);
     return () => window.clearInterval(timer);
-  }, [session, board?.ended, refresh]);
+  }, [session, user, board?.ended, refresh]);
 
   // Cảnh báo mới sinh ra ở phía máy chủ (ví dụ do người khác kích hoạt).
   useEffect(() => {
@@ -273,7 +280,7 @@ export default function LecternPage() {
           gap: 16,
           paddingInline: 20,
           borderBottom: "1px solid var(--c-line)",
-          backgroundColor: "white"
+          backgroundColor: "var(--ai-card)",
         }}
       >
         <Link href="/dashboard/rooms">
@@ -292,6 +299,14 @@ export default function LecternPage() {
 
         <span style={{ marginInlineStart: "auto" }} />
         <Space>
+          <Button
+            href={`/teaching-assistant/${sessionId}`}
+            target="_blank"
+            rel="noreferrer"
+            icon={<RadarChartOutlined />}
+          >
+            Trợ giảng
+          </Button>
           <Tooltip title="Học viên đang trong phòng">
             <Tag icon={<TeamOutlined />}>{metrics?.online_students ?? 0}</Tag>
           </Tooltip>
