@@ -33,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
       </head>
-      <body className="min-h-screen bg-canvas text-ink">
+      <body className="min-h-screen bg-canvas text-ink" suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>
     </html>
