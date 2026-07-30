@@ -60,6 +60,7 @@ frontend/                   Next.js App Router + Tailwind + Ant Design
     courses/                khoá học, upload PPTX, checkpoint, câu hỏi, chất lượng
     rooms/                  phòng học, mã lớp, bắt đầu buổi
   app/teach/[sessionId]/    Bục Giảng
+  app/teaching-assistant/[sessionId]/  console Trợ giảng realtime, dữ liệu ẩn danh
   app/join  app/learn/[sessionId]/   phía học viên
   components/SlideCanvas.tsx  vẽ slide lên HTML canvas (title, bullets, code, bảng, note)
   components/AdviceAlert.tsx  popup cảnh báo cho giảng viên
@@ -67,10 +68,12 @@ frontend/                   Next.js App Router + Tailwind + Ant Design
   components/icons.tsx      toàn bộ icon lấy từ lucide-react (SVG), không dùng emoji
 ```
 
-## Backend Trợ giảng và tự đồng bộ slide
+## Trợ giảng và tự đồng bộ slide
 
-Phần này hiện mới được triển khai ở **backend**. Frontend trong repo vẫn dùng hợp đồng
-Socket.IO cũ nên chưa gửi telemetry slide và chưa xử lý lệnh tự chuyển slide.
+Console Trợ giảng ở `/teaching-assistant/{session_id}` hiển thị nhịp hiểu bài, bản đồ
+khái niệm, chẩn đoán, hàng đợi hỗ trợ ẩn danh và mức bao phủ tracking. Có thể mở console
+từ thẻ phòng đang hoạt động hoặc từ Bục Giảng. Frontend cập nhật qua Socket.IO và dùng
+polling 12 giây làm kênh dự phòng.
 
 ### API dữ liệu Trợ giảng
 
@@ -138,7 +141,10 @@ Mốc lệch không bị đặt lại khi học viên chuyển sang một slide 
 follow, socket cuối cùng ngắt kết nối hoặc buổi học kết thúc. Thời gian mặc định là
 300 giây và có thể đổi bằng `AGORA_SLIDE_SYNC_TIMEOUT_SECONDS`. Mỗi tab/socket được
 theo dõi riêng; nếu một tab vẫn lệch thì tab khác đang đúng không che mất timer.
-Frontend nên dùng `sync_id` để bỏ qua event lặp khi Socket.IO phải retry sau lỗi mạng.
+Frontend dùng `sync_id` để bỏ qua event lặp khi Socket.IO phải retry sau lỗi mạng. Khi
+nhận lệnh, màn hình học viên chuyển về slide mới nhất, bật lại chế độ theo giảng viên và
+gửi telemetry xác nhận. Đồng hồ trên frontend chỉ để thông báo; frontend không tự ép
+chuyển slide khi đếm về 0 vì backend là nguồn quyết định và ghi audit.
 
 Để nhận `slide_tracking_summary`, socket phía giảng viên join với payload cũ kèm JWT:
 

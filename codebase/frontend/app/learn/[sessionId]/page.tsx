@@ -4,15 +4,37 @@
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BlockConfirm from "@/components/BlockConfirm";
+import type { Socket } from "socket.io-client";
 import { BlockButton, BlockCard } from "@/components/Blocks";
 import SlideCanvas from "@/components/SlideCanvas";
 import ThemeToggle from "@/components/ThemeToggle";
 import { Icon, avatarIcon, avatarLabel } from "@/components/icons";
 import { api, type SlideOut, type StudentState } from "@/lib/api";
-import { joinRoom } from "@/lib/socket";
+import { joinStudentSession } from "@/lib/socket";
 import { useLearner, useLearnerHydrated } from "@/lib/store";
 
 type OpenQuestion = NonNullable<StudentState["current_question"]>;
+
+interface TrackingSnapshot {
+  session_id: number;
+  slide_index: number;
+  lecturer_slide_index: number;
+  following_lecturer: boolean;
+  out_of_sync: boolean;
+  remaining_seconds: number | null;
+  timeout_seconds: number;
+}
+
+interface SyncNotice {
+  text: string;
+  kind: "synced" | "warning";
+}
+
+interface ForceSyncPayload {
+  session_id: number;
+  slide_index: number;
+  sync_id: string;
+}
 
 export default function LearnPage() {
   const params = useParams<{ sessionId: string }>();
@@ -38,7 +60,23 @@ export default function LearnPage() {
   const [hints, setHints] = useState<{ id: number; questions: string[] } | null>(null);
   const [hintBusy, setHintBusy] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [trackingReady, setTrackingReady] = useState(false);
+  const [trackingActive, setTrackingActive] = useState<boolean | null>(null);
+  const [syncDeadline, setSyncDeadline] = useState<number | null>(null);
+  const [syncClock, setSyncClock] = useState(() => Date.now());
+  const [syncTimeoutSeconds, setSyncTimeoutSeconds] = useState<number | null>(null);
+  const [syncNotice, setSyncNotice] = useState<SyncNotice | null>(null);
   const openedAt = useRef<number>(Date.now());
+  const indexRef = useRef(0);
+  const lecturerIndexRef = useRef(0);
+  const followRef = useRef(true);
+  const endedRef = useRef(false);
+  const joinedRef = useRef(false);
+  const slideStateRevisionRef = useRef(0);
+  const correctionAckRevisionRef = useRef<number | null>(null);
+  const socketRef = useRef<Socket | null>(null);
+  const seenSyncIds = useRef(new Set<string>());
+  const noticeTimer = useRef<number | null>(null);
 
   /* --------------------------------------------------------------- vào phiên */
 
@@ -57,49 +95,447 @@ export default function LearnPage() {
     openedAt.current = Date.now();
   }, []);
 
-  useEffect(() => {
-    if (!profile || profile.session_id !== sessionId) return;
-    let alive = true;
-    (async () => {
-      const [list, state] = await Promise.all([
-        api.studentSlides(sessionId).catch(() => [] as SlideOut[]),
-        api.studentState(sessionId).catch(() => null),
-      ]);
-      if (!alive) return;
-      setSlides(list);
-      if (state) {
-        setLecturerIndex(state.current_slide_index);
-        setIndex(state.current_slide_index);
-        setEnded(state.ended);
-        applyQuestion(state.current_question);
+  const applySlideState = useCallback((slideIndex: number, following: boolean) => {
+    indexRef.current = slideIndex;
+    followRef.current = following;
+    setIndex(slideIndex);
+    setFollow(following);
+  }, []);
+
+  const showSyncNotice = useCallback(
+    (text: string, kind: SyncNotice["kind"], autoHide = false) => {
+      if (noticeTimer.current !== null) {
+        window.clearTimeout(noticeTimer.current);
+        noticeTimer.current = null;
       }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [profile, sessionId, applyQuestion]);
+      setSyncNotice({ text, kind });
+      if (autoHide) {
+        noticeTimer.current = window.setTimeout(() => {
+          setSyncNotice(null);
+          noticeTimer.current = null;
+        }, 7000);
+      }
+    },
+    [],
+  );
+
+  const applyTrackingSnapshot = useCallback(
+    (snapshot: TrackingSnapshot, authoritative = false) => {
+      if (
+        endedRef.current ||
+        snapshot.session_id !== sessionId ||
+        !Number.isInteger(snapshot.slide_index) ||
+        snapshot.slide_index < 0 ||
+        !Number.isInteger(snapshot.lecturer_slide_index) ||
+        snapshot.lecturer_slide_index < 0
+      ) {
+        return;
+      }
+
+      // Update thường là ACK cho telemetry vừa gửi. Bỏ snapshot cũ nếu người
+      // học đã thao tác tiếp hoặc vừa nhận force-sync sau khi ACK đó được tạo.
+      const matchesLocal =
+        snapshot.slide_index === indexRef.current &&
+        snapshot.following_lecturer === followRef.current &&
+        snapshot.lecturer_slide_index === lecturerIndexRef.current;
+      if (!authoritative && !matchesLocal) return false;
+
+      lecturerIndexRef.current = snapshot.lecturer_slide_index;
+      setLecturerIndex(snapshot.lecturer_slide_index);
+      applySlideState(snapshot.slide_index, snapshot.following_lecturer);
+      setSyncTimeoutSeconds(snapshot.timeout_seconds);
+      setTrackingActive(true);
+      if (
+        snapshot.out_of_sync &&
+        typeof snapshot.remaining_seconds === "number"
+      ) {
+        setSyncClock(Date.now());
+        setSyncDeadline(Date.now() + Math.max(0, snapshot.remaining_seconds) * 1000);
+      } else {
+        setSyncDeadline(null);
+      }
+      return true;
+    },
+    [applySlideState, sessionId],
+  );
+
+  const reportSlide = useCallback(
+    (slideIndex: number, following: boolean) => {
+      const current = socketRef.current;
+      if (endedRef.current || !joinedRef.current || !current?.connected) return;
+      current.emit("student_slide_changed", {
+        session_id: sessionId,
+        slide_index: slideIndex,
+        following,
+      });
+    },
+    [sessionId],
+  );
 
   useEffect(() => {
     if (!profile || profile.session_id !== sessionId) return;
-    const socket = joinRoom(sessionId, "student");
-    const onSlide = (p: { slide_index: number }) => {
-      setLecturerIndex(p.slide_index);
-      setFollow((f) => {
-        if (f) setIndex(p.slide_index);
-        return f;
-      });
+    let alive = true;
+    let retryTimer: number | null = null;
+    joinedRef.current = false;
+    slideStateRevisionRef.current = 0;
+    correctionAckRevisionRef.current = null;
+    setTrackingReady(false);
+    setTrackingActive(null);
+    setSyncDeadline(null);
+
+    const recoverState = async () => {
+      if (endedRef.current) return;
+      try {
+        const fresh = await api.studentState(sessionId);
+        if (!alive) return;
+        // `ended` là trạng thái terminal; response active cũ không được làm
+        // sống lại session sau khi event kết thúc đã tới.
+        if (endedRef.current && !fresh.ended) return;
+        endedRef.current = fresh.ended;
+        setEnded(fresh.ended);
+        applyQuestion(fresh.ended ? null : fresh.current_question);
+        if (fresh.ended) {
+          joinedRef.current = false;
+          setTrackingActive(false);
+          setTrackingReady(false);
+        }
+      } catch {
+        if (alive) retryTimer = window.setTimeout(recoverState, 2500);
+      }
     };
-    const onOpen = (q: OpenQuestion) => applyQuestion(q);
-    const onClose = () => applyQuestion(null);
+
+    const bootstrap = async () => {
+      const [slidesResult, stateResult] = await Promise.allSettled([
+        api.studentSlides(sessionId),
+        api.studentState(sessionId),
+      ]);
+      if (!alive) return;
+
+      if (slidesResult.status === "rejected") {
+        showSyncNotice(
+          "Mất kết nối khi tải slide. Hệ thống đang thử lại.",
+          "warning",
+        );
+        retryTimer = window.setTimeout(bootstrap, 2000);
+        return;
+      }
+
+      const list = slidesResult.value;
+      setSlides(list);
+      if (stateResult.status === "fulfilled") {
+        const state = stateResult.value;
+        lecturerIndexRef.current = state.current_slide_index;
+        setLecturerIndex(state.current_slide_index);
+        applySlideState(state.current_slide_index, true);
+        endedRef.current = state.ended;
+        setEnded(state.ended);
+        applyQuestion(state.current_question);
+        setTrackingReady(!state.ended && list.length > 0);
+      } else if (list.length > 0) {
+        // REST /state có thể lỗi thoáng qua. Vẫn join tracking ở slide hợp lệ
+        // đầu tiên; snapshot `joined` sẽ reconcile về target mới nhất.
+        endedRef.current = false;
+        setEnded(false);
+        applySlideState(0, true);
+        setTrackingReady(true);
+        showSyncNotice(
+          "Đang khôi phục trạng thái lớp từ kênh realtime.",
+          "warning",
+        );
+        retryTimer = window.setTimeout(recoverState, 1500);
+      }
+    };
+
+    void bootstrap();
+    return () => {
+      alive = false;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+    };
+  }, [
+    profile,
+    sessionId,
+    applyQuestion,
+    applySlideState,
+    showSyncNotice,
+  ]);
+
+  useEffect(() => {
+    if (!profile || profile.session_id !== sessionId || !trackingReady) return;
+    const handle = joinStudentSession(sessionId, profile.token, () => ({
+      slide_index: indexRef.current,
+      following: followRef.current,
+    }));
+    const { socket } = handle;
+    socketRef.current = socket;
+    let active = true;
+    let pendingForce: ForceSyncPayload | null = null;
+
+    const onConnect = () => {
+      joinedRef.current = false;
+      correctionAckRevisionRef.current = null;
+      pendingForce = null;
+      setTrackingActive(null);
+      setSyncDeadline(null);
+    };
+    const onDisconnect = () => {
+      joinedRef.current = false;
+      correctionAckRevisionRef.current = null;
+      pendingForce = null;
+      setTrackingActive(false);
+      setSyncDeadline(null);
+      if (!endedRef.current) {
+        showSyncNotice(
+          "Mất kết nối realtime. Đồng hồ tự đồng bộ đã tạm dừng.",
+          "warning",
+        );
+      }
+    };
+    const onConnectError = () => {
+      joinedRef.current = false;
+      correctionAckRevisionRef.current = null;
+      pendingForce = null;
+      setTrackingActive(false);
+      setSyncDeadline(null);
+      if (!endedRef.current) {
+        showSyncNotice(
+          "Không kết nối được kênh realtime. Bạn vẫn có thể tự xem slide.",
+          "warning",
+        );
+      }
+    };
+    const onSlide = (payload: { session_id: number; slide_index: number }) => {
+      if (
+        endedRef.current ||
+        payload.session_id !== sessionId ||
+        !Number.isInteger(payload.slide_index) ||
+        payload.slide_index < 0
+      ) {
+        return;
+      }
+      slideStateRevisionRef.current += 1;
+      correctionAckRevisionRef.current = null;
+      lecturerIndexRef.current = payload.slide_index;
+      setLecturerIndex(payload.slide_index);
+      if (followRef.current) {
+        applySlideState(payload.slide_index, true);
+        reportSlide(payload.slide_index, true);
+      } else {
+        reportSlide(indexRef.current, false);
+      }
+    };
+    const finishSession = () => {
+      endedRef.current = true;
+      joinedRef.current = false;
+      correctionAckRevisionRef.current = null;
+      pendingForce = null;
+      setEnded(true);
+      setTrackingActive(false);
+      setTrackingReady(false);
+      setSyncDeadline(null);
+      setSyncNotice(null);
+      applyQuestion(null);
+    };
+    const onOpen = (payload: OpenQuestion & { session_id: number }) => {
+      if (!endedRef.current && payload.session_id === sessionId) {
+        applyQuestion(payload);
+      }
+    };
+    const onClose = (payload: { session_id: number }) => {
+      if (payload.session_id === sessionId) applyQuestion(null);
+    };
+    const onTracking = (payload: TrackingSnapshot) => {
+      if (
+        endedRef.current ||
+        !joinedRef.current ||
+        payload.session_id !== sessionId
+      ) {
+        return;
+      }
+      const correctionRevision = correctionAckRevisionRef.current;
+      correctionAckRevisionRef.current = null;
+      const acceptsCorrection =
+        correctionRevision !== null &&
+        correctionRevision === slideStateRevisionRef.current;
+      if (applyTrackingSnapshot(payload, acceptsCorrection) && acceptsCorrection) {
+        slideStateRevisionRef.current += 1;
+      }
+    };
+    const applyForce = (payload: ForceSyncPayload) => {
+      if (
+        endedRef.current ||
+        !joinedRef.current ||
+        seenSyncIds.current.has(payload.sync_id)
+      ) {
+        return;
+      }
+      seenSyncIds.current.add(payload.sync_id);
+      if (seenSyncIds.current.size > 100) {
+        const oldest = seenSyncIds.current.values().next().value;
+        if (oldest) seenSyncIds.current.delete(oldest);
+      }
+
+      slideStateRevisionRef.current += 1;
+      correctionAckRevisionRef.current = null;
+      lecturerIndexRef.current = payload.slide_index;
+      setLecturerIndex(payload.slide_index);
+      applySlideState(payload.slide_index, true);
+      setTrackingActive(true);
+      setSyncDeadline(null);
+      reportSlide(payload.slide_index, true);
+      showSyncNotice(
+        `Đã tự quay lại slide ${payload.slide_index + 1} đang được giảng viên trình chiếu.`,
+        "synced",
+        true,
+      );
+    };
+    const onJoined = (payload: {
+      session_id: number;
+      role: string;
+      tracking_enabled: boolean;
+      tracking?: TrackingSnapshot;
+    }) => {
+      if (
+        payload.session_id !== sessionId ||
+        payload.role !== "student"
+      ) {
+        return;
+      }
+      if (!payload.tracking_enabled || !payload.tracking) {
+        joinedRef.current = false;
+        setTrackingActive(false);
+        setSyncDeadline(null);
+        showSyncNotice(
+          "Không bật được theo dõi slide. Hãy tải lại trang.",
+          "warning",
+        );
+        return;
+      }
+      joinedRef.current = true;
+      setSyncNotice(null);
+      if (!applyTrackingSnapshot(payload.tracking, true)) {
+        joinedRef.current = false;
+        setTrackingActive(false);
+        showSyncNotice("Snapshot tracking không hợp lệ.", "warning");
+        return;
+      }
+
+      slideStateRevisionRef.current += 1;
+      const queuedForce = pendingForce;
+      pendingForce = null;
+      if (queuedForce) {
+        applyForce(queuedForce);
+      } else {
+        // Snapshot joined được tạo trước khi server hoàn tất handshake. Gửi
+        // một heartbeat ngay sau join để lấy lại target authoritative mới nhất.
+        correctionAckRevisionRef.current = slideStateRevisionRef.current;
+        reportSlide(indexRef.current, followRef.current);
+      }
+    };
+    const onForce = (payload: ForceSyncPayload) => {
+      if (
+        endedRef.current ||
+        payload.session_id !== sessionId ||
+        !Number.isInteger(payload.slide_index) ||
+        payload.slide_index < 0 ||
+        typeof payload.sync_id !== "string" ||
+        !payload.sync_id ||
+        seenSyncIds.current.has(payload.sync_id)
+      ) {
+        return;
+      }
+      if (!joinedRef.current) {
+        pendingForce = payload;
+        return;
+      }
+      applyForce(payload);
+    };
+    const onEnded = (payload: { session_id: number }) => {
+      if (payload.session_id !== sessionId) return;
+      finishSession();
+    };
+    const onTrackingError = (payload: { code?: string; message?: string }) => {
+      const terminal = new Set([
+        "unauthorized_tracking",
+        "inactive_session",
+        "tracking_not_enabled",
+      ]).has(payload.code ?? "");
+      if (!joinedRef.current || terminal) {
+        joinedRef.current = false;
+        correctionAckRevisionRef.current = null;
+        setTrackingActive(false);
+        setSyncDeadline(null);
+      }
+      showSyncNotice(
+        payload.message || "Không cập nhật được trạng thái slide.",
+        "warning",
+      );
+      if (terminal) {
+        void api
+          .studentState(sessionId)
+          .then((fresh) => {
+            if (!active || endedRef.current) return;
+            if (fresh.ended) finishSession();
+            else applyQuestion(fresh.current_question);
+          })
+          .catch(() => {});
+      }
+    };
+
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    socket.on("connect_error", onConnectError);
     socket.on("slide_changed", onSlide);
     socket.on("question_opened", onOpen);
     socket.on("question_closed", onClose);
+    socket.on("joined", onJoined);
+    socket.on("slide_tracking_updated", onTracking);
+    socket.on("force_slide_sync", onForce);
+    socket.on("session_ended", onEnded);
+    socket.on("slide_tracking_error", onTrackingError);
     return () => {
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      socket.off("connect_error", onConnectError);
       socket.off("slide_changed", onSlide);
       socket.off("question_opened", onOpen);
       socket.off("question_closed", onClose);
+      socket.off("joined", onJoined);
+      socket.off("slide_tracking_updated", onTracking);
+      socket.off("force_slide_sync", onForce);
+      socket.off("session_ended", onEnded);
+      socket.off("slide_tracking_error", onTrackingError);
+      active = false;
+      joinedRef.current = false;
+      correctionAckRevisionRef.current = null;
+      socketRef.current = null;
+      handle.dispose();
     };
-  }, [profile, sessionId, applyQuestion]);
+  }, [
+    profile,
+    sessionId,
+    trackingReady,
+    applyQuestion,
+    applySlideState,
+    applyTrackingSnapshot,
+    reportSlide,
+    showSyncNotice,
+  ]);
+
+  useEffect(
+    () => () => {
+      if (noticeTimer.current !== null) {
+        window.clearTimeout(noticeTimer.current);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (syncDeadline === null) return;
+    setSyncClock(Date.now());
+    const timer = window.setInterval(() => setSyncClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [syncDeadline]);
 
   /* ------------------------------------------------------------------ hành vi */
 
@@ -117,20 +553,28 @@ export default function LearnPage() {
     const next = Math.max(0, Math.min(slides.length - 1, index + delta));
     if (next === index) return;
     if (delta < 0) sendEvent("return_slide");
-    setIndex(next);
+    slideStateRevisionRef.current += 1;
+    correctionAckRevisionRef.current = null;
+    const nextFollow = follow && next === lecturerIndex;
+    applySlideState(next, nextFollow);
+    reportSlide(next, nextFollow);
     if (next !== lecturerIndex && follow) {
-      setFollow(false);
       sendEvent("unfollow");
     }
   }
 
   function toggleFollow() {
     const next = !follow;
-    setFollow(next);
+    slideStateRevisionRef.current += 1;
+    correctionAckRevisionRef.current = null;
     if (next) {
-      setIndex(lecturerIndex);
+      applySlideState(lecturerIndex, true);
+      reportSlide(lecturerIndex, true);
+      setSyncDeadline(null);
       sendEvent("follow_lecturer");
     } else {
+      applySlideState(index, false);
+      reportSlide(index, false);
       sendEvent("unfollow");
     }
   }
@@ -242,6 +686,11 @@ export default function LearnPage() {
 
   const slide = slides[index];
   const behind = follow ? 0 : lecturerIndex - index;
+  const syncRemaining =
+    syncDeadline === null
+      ? null
+      : Math.max(0, Math.ceil((syncDeadline - syncClock) / 1000));
+  const slideControlsLocked = !ended && trackingActive === null;
   const Avatar = avatarIcon(profile.avatar);
   const ResultIcon =
     result?.correct === true ? Icon.correct : result?.correct === false ? Icon.wrong : Icon.skip;
@@ -555,4 +1004,11 @@ function shuffle(items: string[]): string[] {
     [out[i], out[j]] = [out[j], out[i]];
   }
   return out;
+}
+
+function formatDuration(totalSeconds: number): string {
+  const safe = Math.max(0, Math.round(totalSeconds));
+  const minutes = Math.floor(safe / 60);
+  const seconds = safe % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }

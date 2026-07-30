@@ -7,6 +7,7 @@ import {
   PlayCircleOutlined,
   PlusOutlined,
   PoweroffOutlined,
+  RadarChartOutlined,
   ReloadOutlined,
   WarningFilled,
 } from "@ant-design/icons";
@@ -264,6 +265,15 @@ export default function RoomsPage() {
                           Vào Bục Giảng
                         </Button>
                       </Link>
+                      <Button
+                        href={`/teaching-assistant/${room.active_session_id}`}
+                        className="flex-1"
+                        target="_blank"
+                        rel="noreferrer"
+                        icon={<RadarChartOutlined />}
+                      >
+                        Trợ giảng
+                      </Button>
                       <Button icon={<PoweroffOutlined />} onClick={() => end(room)}>
                         Kết thúc
                       </Button>

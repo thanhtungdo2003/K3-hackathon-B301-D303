@@ -4,17 +4,18 @@
  */
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
-const TOKEN_KEY = "agora-token";
+export const AUTH_TOKEN_STORAGE_KEY = "agora-token";
+export const AUTH_SESSION_INVALID_EVENT = "agora-auth-session-invalid";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(TOKEN_KEY);
+  return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
 }
 
 export function setToken(token: string | null) {
   if (typeof window === "undefined") return;
-  if (token) window.localStorage.setItem(TOKEN_KEY, token);
-  else window.localStorage.removeItem(TOKEN_KEY);
+  if (token) window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+  else window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
 }
 
 export class ApiError extends Error {
@@ -52,7 +53,14 @@ async function request<T>(
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   const res = await fetch(`${API_BASE}${path}`, { ...rest, headers, cache: "no-store" });
-  if (!res.ok) throw new ApiError(res.status, await parseError(res));
+  if (!res.ok) {
+    const message = await parseError(res);
+    if (auth && res.status === 401 && typeof window !== "undefined") {
+      setToken(null);
+      window.dispatchEvent(new Event(AUTH_SESSION_INVALID_EVENT));
+    }
+    throw new ApiError(res.status, message);
+  }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
@@ -309,6 +317,114 @@ export interface AssistantStatus {
   tools: { name: string; label: string }[];
 }
 
+export interface CountRate {
+  count: number;
+  rate: number;
+}
+
+export interface AssistantPulse {
+  total_students: number;
+  classified_students: number;
+  on_track: CountRate;
+  needs_follow_up: CountRate;
+  struggling: CountRate;
+  unclassified: CountRate;
+  rule_version: string;
+  rules: Record<string, string>;
+}
+
+export interface AssistantConceptEvidence {
+  online_students: number;
+  responded: number;
+  graded_answers: number;
+  wrong_rate: number;
+  skip_rate: number;
+  low_confidence_rate: number;
+  return_visits: number;
+  questions_asked: number;
+}
+
+export interface AssistantConcept {
+  slide_index: number;
+  title: string;
+  source: "slide_title";
+  understanding: number | null;
+  status: "green" | "yellow" | "red" | "insufficient_data";
+  state: string;
+  state_label: string;
+  severity: number;
+  trusted: boolean;
+  sample_note: string;
+  evidence: AssistantConceptEvidence;
+}
+
+export interface AssistantAdvice {
+  id: number;
+  slide_index: number;
+  headline: string;
+  action: string;
+  evidence: unknown[];
+  confidence: string;
+  source: string;
+  created_at: string;
+}
+
+export interface AssistantDiagnostic {
+  slide_index: number;
+  state: string;
+  state_label: string;
+  severity: number;
+  reasons: string[];
+  trusted: boolean;
+  sample_note: string;
+  latest_advice: AssistantAdvice | null;
+}
+
+export interface AssistantSupportItem {
+  key: string;
+  type: "raise_hand" | "ask_question";
+  slide_index: number;
+  text: string;
+  created_at: string;
+  age_seconds: number;
+}
+
+export interface SlideTrackingAggregate {
+  session_id: number;
+  lecturer_slide_index: number;
+  timeout_seconds: number;
+  online_students: number;
+  tracked_students: number;
+  connected_students: number;
+  aligned_students: number;
+  out_of_sync_students: number;
+  unknown_students: number;
+  tracking_coverage: number;
+  auto_synced_total: number;
+}
+
+export interface TeachingAssistantDashboard {
+  session: {
+    id: number;
+    title: string;
+    course_title: string;
+    current_slide_index: number;
+    ended: boolean;
+  };
+  generated_at: string;
+  pulse: AssistantPulse;
+  concepts: AssistantConcept[];
+  hot_concepts: AssistantConcept[];
+  diagnostic: AssistantDiagnostic;
+  support_queue: AssistantSupportItem[];
+  slide_sync: SlideTrackingAggregate;
+  privacy: {
+    identity_fields_omitted: boolean;
+    free_text_may_contain_self_identification: boolean;
+    note: string;
+  };
+}
+
 export interface JoinResult {
   token: string;
   participant_id: number;
@@ -432,6 +548,16 @@ export const api = {
   assistantStatus: () => request<AssistantStatus>("/assistant/status"),
   assistantChat: (messages: { role: "user" | "assistant"; content: string }[]) =>
     request<AssistantTurn>("/assistant/chat", { method: "POST", body: body({ messages }) }),
+
+  /* --- console Trợ giảng theo thời gian thực --- */
+  teachingAssistantDashboard: (sessionId: number) =>
+    request<TeachingAssistantDashboard>(
+      `/teaching-assistant/sessions/${sessionId}/dashboard`,
+    ),
+  assistantSlideTracking: (sessionId: number) =>
+    request<SlideTrackingAggregate>(
+      `/teaching-assistant/sessions/${sessionId}/slide-tracking`,
+    ),
 
   /* --- dashboard chủ phòng --- */
   overview: () => request<Overview>("/insights/overview"),
