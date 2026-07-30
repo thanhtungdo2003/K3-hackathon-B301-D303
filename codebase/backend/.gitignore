@@ -1,0 +1,7 @@
+agora.db
+traces/
+.env
+__pycache__/
+*.pyc
+.venv/
+uploads/

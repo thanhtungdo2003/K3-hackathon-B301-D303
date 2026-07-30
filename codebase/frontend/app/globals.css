@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Chủ đề sáng — nền phẳng một màu, không gradient. */
+:root {
+  --c-canvas: #fffdf6;
+  --c-surface: #ffffff;
+  --c-sunken: #f4f1e8;
+  --c-line: #e2ddd0;
+  --c-ink: #1f2421;
+  --c-muted: #6d7570;
+  color-scheme: light;
+}
+
+/* Chủ đề tối — cũng phẳng một màu. */
+.dark {
+  --c-canvas: #14171b;
+  --c-surface: #1d2126;
+  --c-sunken: #262b31;
+  --c-line: #363c44;
+  --c-ink: #f3f5f4;
+  --c-muted: #9aa3a0;
+  color-scheme: dark;
+}
+
+html,
+body {
+  background-color: var(--c-canvas);
+  color: var(--c-ink);
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  /* Nút khối: viền dưới dày, nhấn xuống khi bấm — không bóng mờ, không gradient. */
+  .blk {
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-blk border-b-4 px-5 py-3
+           font-extrabold uppercase tracking-wide transition-[transform,border-width] duration-75
+           active:translate-y-[3px] active:border-b-[1px] disabled:pointer-events-none disabled:opacity-45;
+  }
+
+  /* Ô nhập khối */
+  .blk-input {
+    @apply w-full rounded-blk border-2 border-b-4 border-line bg-surface px-5 py-4 text-lg font-bold
+           text-ink outline-none placeholder:font-semibold placeholder:text-muted
+           focus:border-sky focus:border-b-4;
+  }
+
+  /* Thẻ khối */
+  .blk-card {
+    @apply rounded-blk border-2 border-b-4 border-line bg-surface;
+  }
+}
