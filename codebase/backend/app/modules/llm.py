@@ -1,11 +1,12 @@
 """Lớp gọi LLM — nhà cung cấp: Groq.
 
-Ba việc LLM được phép làm:
+Bốn việc LLM được phép làm:
   1. suggest_student_questions  — sinh CÂU HỎI cho học viên đang bí (không sinh đáp án)
   2. draft_checkpoint_questions — soạn nháp câu hỏi cho một checkpoint, giảng viên duyệt
   3. advise_teacher             — viết cảnh báo + một hành động dạy cho Bục Giảng
+  4. chat_with_tools            — trợ lý dashboard, gọi tool để dựng khoá học / phòng học
 
-Mọi lượt gọi đều ép JSON và ghi trace ra ./traces/.
+Mọi lượt gọi đều ghi trace ra ./traces/. Ba việc đầu ép JSON; việc thứ tư dùng tool calling.
 """
 from __future__ import annotations
 
@@ -237,3 +238,173 @@ def advise_teacher(metrics: dict, state: dict, lecturer_request: str | None = No
         ]
     parts += ["", "Trả JSON đúng schema."]
     return _chat_json("advisor", ADVISOR_SYSTEM, "\n".join(parts), max_tokens=900)
+
+
+# ── 4. Trợ lý dashboard (tool calling) ──────────────────────────────────────
+
+ASSISTANT_SYSTEM = """Bạn là trợ lý dựng lớp học trong hệ thống AGORA, làm việc cùng một giảng viên.
+
+BẠN LÀM ĐƯỢC GÌ
+- Tạo và sửa khoá học, xem danh sách slide, đặt checkpoint, soạn nháp câu hỏi, tạo phòng học, bắt đầu buổi học, đọc số liệu tổng quan và chất lượng từng slide.
+- Làm những việc đó bằng cách GỌI TOOL. Không bao giờ nói là đã làm xong khi chưa gọi tool tương ứng.
+
+BẠN KHÔNG LÀM ĐƯỢC GÌ
+- Không tải file .pptx lên thay người dùng. Khi cần slide, hướng dẫn họ vào trang khoá học bấm "Tải PPTX lên".
+- Không xoá bất cứ thứ gì. Nếu người dùng muốn xoá, chỉ họ vào trang tương ứng tự xoá.
+- Không chấm điểm, xếp hạng hay nhận xét năng lực từng học viên. Không nêu tên học viên.
+
+CHỈ LÀM ĐÚNG VIỆC ĐƯỢC NHỜ — ĐIỀU QUAN TRỌNG NHẤT
+- Tool tạo mới hoặc thay đổi dữ liệu (tạo khoá học, sửa khoá học, đặt checkpoint, soạn câu hỏi, tạo phòng, bắt đầu buổi) CHỈ được gọi khi TIN NHẮN MỚI NHẤT của người dùng yêu cầu đúng việc đó.
+- Một việc thay đổi dữ liệu đã thất bại ở lượt trước thì COI NHƯ BỎ. Tuyệt đối không tự làm lại ở lượt sau khi người dùng chưa nhắc lại. Nếu bạn nghĩ giờ làm được rồi, hãy HỎI người dùng có muốn làm không.
+- Người dùng chỉ hỏi để xem (có gì, bao nhiêu, slide nào, chất lượng ra sao) thì chỉ dùng tool đọc. Không tạo gì thêm.
+- Tên do người dùng đặt phải giữ nguyên từng chữ, kể cả dấu. Không sửa, không đoán lại chính tả.
+
+CÁCH LÀM VIỆC
+- Thiếu thông tin bắt buộc thì HỎI LẠI một câu ngắn, đừng tự đặt tên hộ. Ví dụ người dùng nói "tạo khoá học" mà chưa nói tên thì hỏi tên khoá học.
+- Người dùng đã nói rõ tên rồi thì làm luôn, không hỏi lại cho đủ lệ.
+- Một tin nhắn nhờ nhiều việc nối nhau (đặt checkpoint rồi soạn câu hỏi) thì làm hết trong lượt đó rồi báo cáo một lần.
+- Tool trả lỗi vì thiếu điều kiện (chưa có slide chẳng hạn) thì DỪNG việc đó, nói thẳng vướng ở đâu và cần làm gì trước. Chỉ thử lại khi lỗi là do bạn truyền sai tham số.
+- Không bịa id, tên khoá học hay mã phòng. Số nào cũng phải từ kết quả tool. Không nhớ id thì dùng tên hoặc mã, hoặc đọc lại danh sách trước.
+- TUYỆT ĐỐI không báo là đã làm xong một việc mà tool trả về lỗi. Việc nào lỗi thì nói rõ là chưa làm được và vướng ở đâu.
+
+TRẢ LỜI
+- Tiếng Việt, ngắn, mỗi câu một việc. Không emoji. Không markdown bảng.
+- Đã làm gì thì liệt kê gọn kèm số liệu thật (mã phòng, số câu hỏi, số slide).
+- KHÔNG đọc id ra cho người dùng. Gọi bằng tên khoá học hoặc mã phòng.
+- Nói với giảng viên ở ngôi thứ hai ("bạn"), không gọi họ là "người dùng".
+- KHÔNG nhắc tên tool, tên hàm, tên tham số hay từ "tool" trong câu trả lời. Người dùng không biết những thứ đó. Nói việc, đừng nói cơ chế.
+- Cần người dùng tự làm tiếp thì chỉ đường theo giao diện: "vào trang Khoá học bấm Tải PPTX lên", "mở Bục Giảng của buổi này".
+- Cuối cùng nêu một bước tiếp theo cụ thể nếu có."""
+
+MAX_TOOL_ROUNDS = 6
+
+
+def chat_with_tools(
+    messages: list[dict],
+    tool_schemas: list[dict],
+    run_tool,
+    max_rounds: int = MAX_TOOL_ROUNDS,
+) -> dict | None:
+    """Vòng tool calling của trợ lý dashboard.
+
+    `run_tool(name, args) -> dict` do lớp router truyền vào, đã khoá theo người dùng.
+    Trả về {"reply", "calls": [...], "trace_id"} hoặc None nếu không gọi được Groq.
+    """
+    client = _client()
+    if client is None:
+        return None
+
+    trace_id = uuid.uuid4().hex[:12]
+    convo: list[dict[str, Any]] = [{"role": "system", "content": ASSISTANT_SYSTEM}] + list(messages)
+    calls: list[dict] = []
+
+    for round_index in range(max_rounds):
+        try:
+            response = client.chat.completions.create(
+                model=settings.groq_model,
+                messages=convo,
+                tools=tool_schemas,
+                tool_choice="auto",
+                temperature=0.2,
+                max_tokens=1400,
+            )
+        except Exception as exc:  # noqa: BLE001 — mạng/quota/khoá đều rơi về đường lùi
+            _trace(
+                "assistant",
+                {
+                    "trace_id": trace_id,
+                    "kind": "assistant",
+                    "ts": datetime.now(timezone.utc).isoformat(),
+                    "model": settings.groq_model,
+                    "ok": False,
+                    "round": round_index,
+                    "error": f"{type(exc).__name__}: {exc}",
+                },
+            )
+            # Chạm giới hạn tốc độ là chuyện tạm thời — phải nói khác lỗi mất kết nối,
+            # và nếu đã kịp làm được việc gì thì không được giấu.
+            return {
+                "reply": "",
+                "calls": calls,
+                "trace_id": trace_id,
+                "failure": "rate_limit"
+                if type(exc).__name__ == "RateLimitError"
+                else "call_failed",
+            }
+
+        choice = response.choices[0].message
+        tool_calls = getattr(choice, "tool_calls", None) or []
+
+        if not tool_calls:
+            reply = (choice.content or "").strip()
+            _trace(
+                "assistant",
+                {
+                    "trace_id": trace_id,
+                    "kind": "assistant",
+                    "ts": datetime.now(timezone.utc).isoformat(),
+                    "model": settings.groq_model,
+                    "ok": True,
+                    "rounds": round_index + 1,
+                    "calls": calls,
+                    "reply": reply[:1500],
+                },
+            )
+            return {"reply": reply, "calls": calls, "trace_id": trace_id}
+
+        convo.append(
+            {
+                "role": "assistant",
+                "content": choice.content or "",
+                "tool_calls": [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments,
+                        },
+                    }
+                    for tc in tool_calls
+                ],
+            }
+        )
+
+        for tc in tool_calls:
+            name = tc.function.name
+            try:
+                args = json.loads(tc.function.arguments or "{}")
+                if not isinstance(args, dict):
+                    args = {}
+            except json.JSONDecodeError:
+                args = {}
+            result = run_tool(name, args)
+            calls.append({"tool": name, "args": args, "result": result})
+            convo.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "name": name,
+                    "content": json.dumps(result, ensure_ascii=False, default=str)[:4000],
+                }
+            )
+
+    # Hết vòng mà model vẫn muốn gọi tool: dừng lại và nói thật, không im lặng.
+    _trace(
+        "assistant",
+        {
+            "trace_id": trace_id,
+            "kind": "assistant",
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "model": settings.groq_model,
+            "ok": True,
+            "rounds": max_rounds,
+            "calls": calls,
+            "reply": "(hết số vòng gọi tool)",
+        },
+    )
+    return {
+        "reply": "Việc này cần nhiều bước hơn một lượt. Đã làm được phần ở trên, bạn nhắc tiếp bước còn lại nhé.",
+        "calls": calls,
+        "trace_id": trace_id,
+    }

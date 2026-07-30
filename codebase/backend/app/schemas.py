@@ -262,3 +262,31 @@ class AdviceRequest(BaseModel):
 class FeedbackRequest(BaseModel):
     feedback: Literal["up", "down", "dismissed", "applied"]
     note: str | None = Field(default=None, max_length=500)
+
+
+# ── Trợ lý AI của dashboard ─────────────────────────────────────────────────
+
+class AssistantMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(max_length=4000)
+
+
+class AssistantRequest(BaseModel):
+    messages: list[AssistantMessage] = Field(min_length=1, max_length=40)
+
+
+class ToolCallOut(BaseModel):
+    tool: str
+    label: str
+    args: dict[str, Any] = Field(default_factory=dict)
+    ok: bool = True
+    error: str = ""
+    result: dict[str, Any] = Field(default_factory=dict)
+
+
+class AssistantResponse(BaseModel):
+    reply: str
+    calls: list[ToolCallOut] = Field(default_factory=list)
+    source: Literal["llm", "rule_fallback", "unavailable"]
+    changed: bool = False
+    trace_id: str | None = None

@@ -59,24 +59,31 @@ export default function Providers({ children }: { children: ReactNode }) {
           theme={{
             algorithm: dark ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm,
             token: {
-              colorPrimary: "#1CB0F6",
-              colorSuccess: "#58CC02",
-              colorWarning: "#FF9600",
-              colorError: "#FF4B4B",
-              colorInfo: "#1CB0F6",
-              borderRadius: 10,
+              // Khu giảng viên: xanh dương đậm làm chính, đỏ để nhấn, trắng làm nền.
+              colorPrimary: dark ? "#4D8BFF" : "#1D4ED8",
+              colorInfo: dark ? "#4D8BFF" : "#1D4ED8",
+              colorLink: dark ? "#7FADFF" : "#1D4ED8",
+              colorSuccess: "#0F9D58",
+              colorWarning: "#E08700",
+              colorError: dark ? "#FF6B6B" : "#D92B2B",
+              borderRadius: 12,
               fontFamily:
                 'ui-rounded, Nunito, "Segoe UI", system-ui, -apple-system, sans-serif',
-              colorBgLayout: dark ? "#14171b" : "#fffdf6",
-              colorBgContainer: dark ? "#1d2126" : "#ffffff",
+              colorBgLayout: dark ? "#0a1020" : "#f4f7fd",
+              colorBgContainer: dark ? "#121b2e" : "#ffffff",
+              colorBorderSecondary: dark ? "#24314c" : "#dde5f3",
             },
             components: {
               Layout: {
-                headerBg: dark ? "#1d2126" : "#ffffff",
-                siderBg: dark ? "#1d2126" : "#ffffff",
-                bodyBg: dark ? "#14171b" : "#fffdf6",
+                headerBg: dark ? "#0b1424" : "#0b2e63",
+                siderBg: dark ? "#0b1424" : "#0b2e63",
+                bodyBg: dark ? "#0a1020" : "#f4f7fd",
               },
-              Menu: { itemBg: "transparent" },
+              Menu: {
+                itemBg: "transparent",
+                darkItemBg: "transparent",
+                darkSubMenuItemBg: "transparent",
+              },
               Card: { headerFontSize: 15 },
             },
           }}
