@@ -1,32 +1,27 @@
 "use client";
 
-/** Chi tiết khoá học: slide, checkpoint, câu hỏi và chất lượng sau các buổi dạy. */
+/** Chi tiết khoá học — Bento: slide, checkpoint, câu hỏi và chất lượng sau các buổi dạy. */
 import {
   ArrowLeftOutlined,
   DeleteOutlined,
+  FileTextOutlined,
   FlagOutlined,
   InboxOutlined,
   PlusOutlined,
+  QuestionCircleOutlined,
   ReloadOutlined,
   ThunderboltOutlined,
+  WarningFilled,
 } from "@ant-design/icons";
 import {
   Alert,
   App,
-  Badge,
   Button,
-  Card,
-  Col,
   Empty,
   Form,
-  Input,
-  List,
   Modal,
-  Progress,
-  Row,
   Space,
   Spin,
-  Statistic,
   Switch,
   Table,
   Tabs,
@@ -44,6 +39,7 @@ import QuestionForm, {
   toQuestionIn,
   type QuestionFormValues,
 } from "@/components/QuestionForm";
+import { BentoBar, BentoCard, BentoGrid, BentoStat } from "@/components/ai/Bento";
 import {
   api,
   type CheckpointOut,
@@ -199,21 +195,19 @@ export default function CourseDetailPage() {
         title: `Mô hình đề xuất ${res.questions.length} câu hỏi`,
         width: 640,
         content: (
-          <List
-            size="small"
-            dataSource={res.questions}
-            renderItem={(q: QuestionIn) => (
-              <List.Item>
-                <Space orientation="vertical" size={2}>
-                  <Typography.Text strong>{q.prompt}</Typography.Text>
+          <ul className="m-0 list-none space-y-2 p-0">
+            {res.questions.map((q: QuestionIn, i: number) => (
+              <li key={i} className="rounded-xl px-3 py-2" style={{ background: "var(--ai-bg)" }}>
+                <Typography.Text strong>{q.prompt}</Typography.Text>
+                <div>
                   <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                     {typeLabel(q.type)}
                     {q.options?.length ? ` · ${q.options.join(" / ")}` : ""}
                   </Typography.Text>
-                </Space>
-              </List.Item>
-            )}
-          />
+                </div>
+              </li>
+            ))}
+          </ul>
         ),
         okText: "Lưu vào checkpoint",
         cancelText: "Bỏ qua",
@@ -251,36 +245,34 @@ export default function CourseDetailPage() {
     return <Alert type="error" showIcon title={error} />;
   }
 
+  const questionTotal = checkpoints.reduce((n, c) => n + c.questions.length, 0);
+  const emptyCheckpoints = checkpoints.filter((c) => c.questions.length === 0);
+
   return (
-    <Space orientation="vertical" size="large" style={{ width: "100%" }}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Space align="center">
+    <div className="space-y-4">
+      {/* ── đầu trang ─────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex items-center gap-3">
           <Link href="/dashboard/courses">
             <Button icon={<ArrowLeftOutlined />} aria-label="Quay lại danh sách khoá học" />
           </Link>
-          <div>
-            <Typography.Title level={3} style={{ margin: 0 }}>
+          <div className="min-w-0">
+            <Typography.Text style={{ color: "var(--ai-muted)", fontWeight: 700, fontSize: 12 }}>
+              {course?.subject?.toUpperCase() || "CHƯA ĐẶT MÔN"}
+            </Typography.Text>
+            <Typography.Title level={3} style={{ margin: 0, color: "var(--ai-ink)" }}>
               {course?.title}
             </Typography.Title>
-            <Typography.Text type="secondary">
-              {course?.subject || "Chưa đặt môn"} · {slides.length} slide · {checkpoints.length}{" "}
-              checkpoint
-            </Typography.Text>
           </div>
-        </Space>
-        <Space>
+        </div>
+        <div className="flex gap-2">
           <Button icon={<ReloadOutlined />} onClick={load} loading={loading} />
-          <Upload
-            accept=".pptx"
-            showUploadList={false}
-            customRequest={upload}
-            disabled={uploading}
-          >
+          <Upload accept=".pptx" showUploadList={false} customRequest={upload} disabled={uploading}>
             <Button type="primary" icon={<InboxOutlined />} loading={uploading}>
               Tải PPTX lên
             </Button>
           </Upload>
-        </Space>
+        </div>
       </div>
 
       {error ? <Alert type="error" showIcon title={error} closable /> : null}
@@ -293,210 +285,236 @@ export default function CourseDetailPage() {
             label: `Slide & checkpoint (${slides.length})`,
             children:
               slides.length === 0 ? (
-                <Card>
-                  <Empty description="Khoá học chưa có slide nào">
-                    <Upload accept=".pptx" showUploadList={false} customRequest={upload}>
-                      <Button type="primary" icon={<InboxOutlined />} loading={uploading}>
-                        Tải file .pptx lên
-                      </Button>
-                    </Upload>
-                  </Empty>
-                </Card>
+                <BentoGrid>
+                  <BentoCard span={6} tone="navy">
+                    <div className="flex flex-wrap items-center justify-between gap-4 py-2">
+                      <div>
+                        <div className="text-xl font-extrabold">Khoá học chưa có slide</div>
+                        <div className="text-sm font-semibold" style={{ opacity: 0.78 }}>
+                          Tải file .pptx lên, hệ thống đọc thành từng trang vẽ trên canvas.
+                        </div>
+                      </div>
+                      <Upload accept=".pptx" showUploadList={false} customRequest={upload}>
+                        <Button
+                          type="primary"
+                          danger
+                          size="large"
+                          icon={<InboxOutlined />}
+                          loading={uploading}
+                        >
+                          Tải file .pptx lên
+                        </Button>
+                      </Upload>
+                    </div>
+                  </BentoCard>
+                </BentoGrid>
               ) : (
-                <Row gutter={[16, 16]}>
+                <BentoGrid>
+                  {/* số liệu nội dung */}
+                  <BentoStat label="Slide" value={slides.length} icon={<FileTextOutlined />} />
+                  <BentoStat
+                    label="Checkpoint"
+                    value={checkpoints.length}
+                    hint={`${checkpoints.filter((c) => c.active).length} đang bật`}
+                    icon={<FlagOutlined />}
+                  />
+                  <BentoStat
+                    label="Câu hỏi"
+                    value={questionTotal}
+                    hint={`${checkpoints.reduce((n, c) => n + c.questions.filter((q) => q.origin === "llm").length, 0)} nháp AI`}
+                    icon={<QuestionCircleOutlined />}
+                  />
+
+                  {emptyCheckpoints.length > 0 ? (
+                    <BentoCard span={6} tone="red" title="Checkpoint rỗng">
+                      <div className="flex items-start gap-2 text-sm font-semibold">
+                        <WarningFilled style={{ color: "var(--ai-red)", marginTop: 3 }} />
+                        <span>
+                          Slide{" "}
+                          {emptyCheckpoints.map((c) => c.slide_index + 1).join(", ")} có checkpoint
+                          nhưng chưa có câu hỏi — khi dạy sẽ không mở được gì.
+                        </span>
+                      </div>
+                    </BentoCard>
+                  ) : null}
+
                   {/* danh sách slide */}
-                  <Col xs={24} lg={6}>
-                    <Card
-                      title="Slide"
-                      styles={{ body: { padding: 0, maxHeight: 620, overflowY: "auto" } }}
-                    >
-                      <List
-                        dataSource={slides}
-                        renderItem={(s, i) => {
-                          const cp = checkpoints.find((c) => c.slide_id === s.id);
-                          return (
-                            <List.Item
-                              onClick={() => setActive(i)}
+                  <BentoCard span={2} title="Slide" className="!p-0">
+                    <div className="max-h-[520px] overflow-y-auto p-2">
+                      {slides.map((s, i) => {
+                        const cp = checkpoints.find((c) => c.slide_id === s.id);
+                        const on = i === active;
+                        return (
+                          <button
+                            key={s.id}
+                            onClick={() => setActive(i)}
+                            className="mb-1 flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors"
+                            style={{
+                              background: on ? "var(--ai-navy)" : "transparent",
+                              color: on ? "#fff" : "var(--ai-ink)",
+                            }}
+                          >
+                            <span
+                              className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-xs font-extrabold tabular-nums"
                               style={{
-                                cursor: "pointer",
-                                paddingInline: 16,
-                                background:
-                                  i === active ? "var(--c-sunken)" : undefined,
+                                background: on ? "rgba(255,255,255,.18)" : "var(--ai-bg)",
+                                color: on ? "#fff" : "var(--ai-muted)",
                               }}
                             >
-                              <List.Item.Meta
-                                avatar={
-                                  <Badge
-                                    count={cp ? cp.questions.length : 0}
-                                    size="small"
-                                    color={cp?.active ? "#FF4B4B" : "#bbb"}
-                                  >
-                                    <span className="grid h-8 w-8 place-items-center rounded-md border border-line text-xs font-bold">
-                                      {i + 1}
-                                    </span>
-                                  </Badge>
-                                }
+                              {i + 1}
+                            </span>
+                            <span className="min-w-0 flex-1 truncate text-xs font-bold">
+                              {s.title || `Slide ${i + 1}`}
+                            </span>
+                            {cp ? (
+                              <span
+                                className="shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-extrabold"
+                                style={{
+                                  background: cp.active ? "var(--ai-red)" : "var(--ai-line)",
+                                  color: cp.active ? "#fff" : "var(--ai-muted)",
+                                }}
                                 title={
-                                  <Typography.Text
-                                    ellipsis
-                                    strong={i === active}
-                                    style={{ maxWidth: 180 }}
-                                  >
-                                    {s.title || `Slide ${i + 1}`}
-                                  </Typography.Text>
+                                  cp.active
+                                    ? `${cp.questions.length} câu hỏi`
+                                    : "checkpoint đang tắt"
                                 }
-                                description={
-                                  cp ? (
-                                    <Tag
-                                      color={cp.active ? "red" : "default"}
-                                      icon={<FlagOutlined />}
-                                      style={{ marginTop: 2 }}
-                                    >
-                                      checkpoint
-                                    </Tag>
-                                  ) : null
-                                }
-                              />
-                            </List.Item>
-                          );
-                        }}
-                      />
-                    </Card>
-                  </Col>
+                              >
+                                {cp.questions.length}
+                              </span>
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </BentoCard>
 
                   {/* xem trước slide */}
-                  <Col xs={24} lg={10}>
-                    <Card
-                      title={slide ? `Slide ${slide.index + 1}` : "Slide"}
-                      styles={{ body: { padding: 12 } }}
-                    >
-                      {slide ? <SlideCanvas slide={slide} /> : null}
-                      {slide?.notes ? (
-                        <Typography.Paragraph
-                          type="secondary"
-                          style={{ marginTop: 12, marginBottom: 0, fontSize: 13 }}
-                        >
-                          <strong>Ghi chú của bạn:</strong> {slide.notes}
-                        </Typography.Paragraph>
-                      ) : null}
-                    </Card>
-                  </Col>
+                  <BentoCard
+                    span={4}
+                    title={slide ? `Xem trước · slide ${slide.index + 1}` : "Xem trước"}
+                  >
+                    {slide ? <SlideCanvas slide={slide} total={slides.length} /> : null}
+                    {slide?.notes ? (
+                      <p className="m-0 text-xs font-semibold" style={{ color: "var(--ai-muted)" }}>
+                        <strong>Ghi chú của bạn:</strong> {slide.notes}
+                      </p>
+                    ) : null}
+                  </BentoCard>
 
-                  {/* checkpoint của slide */}
-                  <Col xs={24} lg={8}>
-                    <Card
-                      title="Checkpoint"
-                      extra={
-                        checkpoint ? (
-                          <Space>
-                            <Tooltip title="Tắt thì câu hỏi không mở được khi đang dạy">
-                              <Switch
-                                size="small"
-                                checked={checkpoint.active}
-                                onChange={(v) => toggleCheckpoint(checkpoint, v)}
-                              />
-                            </Tooltip>
-                            <Button
-                              type="text"
-                              danger
+                  {/* checkpoint của slide đang chọn */}
+                  <BentoCard
+                    span={6}
+                    tone={checkpoint?.active ? "red" : "plain"}
+                    title={
+                      slide ? `Checkpoint tại slide ${slide.index + 1}` : "Checkpoint"
+                    }
+                    extra={
+                      checkpoint ? (
+                        <div className="flex items-center gap-2">
+                          <Tooltip title="Tắt thì câu hỏi không mở được khi đang dạy">
+                            <Switch
                               size="small"
-                              icon={<DeleteOutlined />}
-                              onClick={() => removeCheckpoint(checkpoint)}
-                              aria-label="Xoá checkpoint"
+                              checked={checkpoint.active}
+                              onChange={(v) => toggleCheckpoint(checkpoint, v)}
                             />
-                          </Space>
-                        ) : null
-                      }
-                    >
-                      {!checkpoint ? (
-                        <Empty
-                          image={Empty.PRESENTED_IMAGE_SIMPLE}
-                          description="Slide này chưa có checkpoint"
-                        >
-                          <Button icon={<FlagOutlined />} onClick={addCheckpoint}>
-                            Đặt checkpoint tại đây
-                          </Button>
-                        </Empty>
-                      ) : (
-                        <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
-                          <Typography.Paragraph
-                            editable={{
-                              onChange: async (v) => {
-                                await api.updateCheckpoint(checkpoint.id, { goal: v });
-                                await load();
-                              },
-                            }}
-                            type={checkpoint.goal ? undefined : "secondary"}
-                            style={{ marginBottom: 0 }}
-                          >
-                            {checkpoint.goal || "Mục tiêu kiểm tra (bấm để sửa)"}
-                          </Typography.Paragraph>
-
+                          </Tooltip>
+                          <Button
+                            type="text"
+                            danger
+                            size="small"
+                            icon={<DeleteOutlined />}
+                            onClick={() => removeCheckpoint(checkpoint)}
+                            aria-label="Xoá checkpoint"
+                          />
+                        </div>
+                      ) : null
+                    }
+                  >
+                    {!checkpoint ? (
+                      <div className="flex flex-wrap items-center justify-between gap-3 py-2">
+                        <span className="text-sm font-semibold" style={{ color: "var(--ai-muted)" }}>
+                          Slide này chưa có checkpoint. Đặt một cái nếu đây là chỗ dễ hiểu sai.
+                        </span>
+                        <Button type="primary" icon={<FlagOutlined />} onClick={addCheckpoint}>
+                          Đặt checkpoint tại đây
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
+                        <div className="min-w-0">
                           {checkpoint.questions.length === 0 ? (
-                            <Alert
-                              type="warning"
-                              showIcon
-                              title="Checkpoint chưa có câu hỏi nào."
-                            />
+                            <Alert type="warning" showIcon title="Checkpoint chưa có câu hỏi nào." />
                           ) : (
-                            <List
-                              size="small"
-                              dataSource={checkpoint.questions}
-                              renderItem={(q) => (
-                                <List.Item
-                                  actions={[
-                                    <Button
-                                      key="del"
-                                      type="text"
-                                      danger
-                                      size="small"
-                                      icon={<DeleteOutlined />}
-                                      onClick={() => removeQuestion(q.id)}
-                                      aria-label="Xoá câu hỏi"
-                                    />,
-                                  ]}
+                            <ul className="m-0 list-none space-y-2 p-0">
+                              {checkpoint.questions.map((q, i) => (
+                                <li
+                                  key={q.id}
+                                  className="flex items-start gap-3 rounded-xl px-3 py-2.5"
+                                  style={{ background: "var(--ai-bg)" }}
                                 >
-                                  <List.Item.Meta
-                                    title={
-                                      <Typography.Text style={{ fontSize: 13 }}>
-                                        {q.prompt}
-                                      </Typography.Text>
-                                    }
-                                    description={
-                                      <Space size={4} wrap>
-                                        <Tag>{typeLabel(q.type)}</Tag>
-                                        {q.origin === "llm" ? (
-                                          <Tag color="purple">nháp AI</Tag>
-                                        ) : null}
-                                      </Space>
-                                    }
+                                  <span
+                                    className="grid h-6 w-6 shrink-0 place-items-center rounded-lg text-[11px] font-extrabold"
+                                    style={{ background: "var(--ai-navy)", color: "#fff" }}
+                                  >
+                                    {i + 1}
+                                  </span>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="text-sm font-bold">{q.prompt}</div>
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                      <Tag style={{ marginInlineEnd: 0 }}>{typeLabel(q.type)}</Tag>
+                                      {q.origin === "llm" ? (
+                                        <Tag color="purple" style={{ marginInlineEnd: 0 }}>
+                                          nháp AI
+                                        </Tag>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                  <Button
+                                    type="text"
+                                    danger
+                                    size="small"
+                                    icon={<DeleteOutlined />}
+                                    onClick={() => removeQuestion(q.id)}
+                                    aria-label="Xoá câu hỏi"
                                   />
-                                </List.Item>
-                              )}
-                            />
+                                </li>
+                              ))}
+                            </ul>
                           )}
+                        </div>
 
-                          <Space wrap>
-                            <Button
-                              type="primary"
-                              icon={<PlusOutlined />}
-                              onClick={() => setQOpen(true)}
+                        <div className="space-y-3">
+                          <div>
+                            <div className="bento-label mb-1">Mục tiêu kiểm tra</div>
+                            <Typography.Paragraph
+                              editable={{
+                                onChange: async (v) => {
+                                  await api.updateCheckpoint(checkpoint.id, { goal: v });
+                                  await load();
+                                },
+                              }}
+                              type={checkpoint.goal ? undefined : "secondary"}
+                              style={{ marginBottom: 0, fontSize: 13 }}
                             >
-                              Thêm câu hỏi
-                            </Button>
-                            <Button
-                              icon={<ThunderboltOutlined />}
-                              loading={drafting}
-                              onClick={draft}
-                            >
-                              Soạn nháp bằng AI
-                            </Button>
-                          </Space>
-                        </Space>
-                      )}
-                    </Card>
-                  </Col>
-                </Row>
+                              {checkpoint.goal || "Bấm để ghi mục tiêu"}
+                            </Typography.Paragraph>
+                          </div>
+                          <Button block type="primary" icon={<PlusOutlined />} onClick={() => setQOpen(true)}>
+                            Thêm câu hỏi
+                          </Button>
+                          <Button
+                            block
+                            icon={<ThunderboltOutlined />}
+                            loading={drafting}
+                            onClick={draft}
+                          >
+                            Soạn nháp bằng AI
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </BentoCard>
+                </BentoGrid>
               ),
           },
           {
@@ -522,138 +540,138 @@ export default function CourseDetailPage() {
           <QuestionForm form={qForm} />
         </Form>
       </Modal>
-    </Space>
+    </div>
   );
 }
 
 function QualityTab({ quality }: { quality: CourseQuality | null }) {
   if (!quality) return <Spin />;
+
   if (quality.sessions === 0) {
     return (
-      <Card>
-        <Empty description="Khoá học chưa được dạy buổi nào — chưa có số liệu chất lượng." />
-      </Card>
+      <BentoGrid>
+        <BentoCard span={6}>
+          <Empty description="Khoá học chưa được dạy buổi nào — chưa có số liệu chất lượng." />
+        </BentoCard>
+      </BentoGrid>
     );
   }
 
+  const answered = quality.slides.reduce((n, s) => n + s.answers, 0);
+  const graded = quality.slides.filter((s) => s.answers > 0);
+  const overall = graded.length
+    ? graded.reduce((sum, s) => sum + s.correct_rate * s.answers, 0) / (answered || 1)
+    : 0;
+
   return (
-    <Space orientation="vertical" size="large" style={{ width: "100%" }}>
-      <Row gutter={[16, 16]}>
-        <Col xs={12} md={6}>
-          <Card>
-            <Statistic title="Buổi đã dạy" value={quality.sessions} />
-          </Card>
-        </Col>
-        <Col xs={12} md={6}>
-          <Card>
-            <Statistic title="Slide" value={quality.slides.length} />
-          </Card>
-        </Col>
-        <Col xs={12} md={6}>
-          <Card>
-            <Statistic
-              title="Lượt trả lời"
-              value={quality.slides.reduce((n, s) => n + s.answers, 0)}
-            />
-          </Card>
-        </Col>
-        <Col xs={12} md={6}>
-          <Card>
-            <Statistic
-              title="Slide cần xem lại"
-              value={quality.needs_attention.length}
-              valueStyle={{ color: quality.needs_attention.length ? "#FF9600" : undefined }}
-            />
-          </Card>
-        </Col>
-      </Row>
+    <BentoGrid>
+      <BentoStat label="Buổi đã dạy" value={quality.sessions} />
+      <BentoStat label="Lượt trả lời" value={answered} />
+      <BentoStat
+        label="Slide cần xem lại"
+        value={quality.needs_attention.length}
+        tone={quality.needs_attention.length ? "red" : "plain"}
+      />
 
-      {quality.needs_attention.length > 0 ? (
-        <Alert
-          type="warning"
-          showIcon
-          title="Những slide này đang gây khó nhất"
-          description={
-            <List
-              size="small"
-              dataSource={quality.needs_attention}
-              renderItem={(s) => (
-                <List.Item>
-                  <Typography.Text>
-                    Slide {s.slide_index + 1} — {s.title || "(không tiêu đề)"}
-                  </Typography.Text>
-                  <Space>
-                    {s.answers ? <Tag color="red">đúng {pct(s.correct_rate)}</Tag> : null}
-                    {s.return_visits ? <Tag>quay lại {s.return_visits}</Tag> : null}
-                    {s.hints_requested ? <Tag>xin gợi ý {s.hints_requested}</Tag> : null}
-                  </Space>
-                </List.Item>
-              )}
-            />
-          }
-        />
-      ) : null}
+      <BentoCard span={3} title="Tỉ lệ đúng chung">
+        {answered ? (
+          <>
+            <div className="bento-value">{pct(overall)}</div>
+            <BentoBar value={overall} />
+          </>
+        ) : (
+          <Typography.Text style={{ color: "var(--ai-muted)", fontSize: 13 }}>
+            Chưa có lượt trả lời nào.
+          </Typography.Text>
+        )}
+      </BentoCard>
 
-      <Card title="Chi tiết từng slide">
-        <Table<SlideQuality>
-          rowKey="slide_index"
-          dataSource={quality.slides}
-          pagination={false}
-          scroll={{ x: 860 }}
-          columns={[
-            {
-              title: "#",
-              dataIndex: "slide_index",
-              width: 60,
-              render: (v: number) => v + 1,
-            },
-            { title: "Tiêu đề", dataIndex: "title", ellipsis: true },
-            {
-              title: "Checkpoint",
-              dataIndex: "has_checkpoint",
-              width: 120,
-              render: (v: boolean, r) =>
-                v ? <Tag color="red">{r.question_count} câu</Tag> : <Typography.Text type="secondary">—</Typography.Text>,
-            },
-            { title: "Trả lời", dataIndex: "answers", width: 90, align: "right" },
-            {
-              title: "Đúng",
-              dataIndex: "correct_rate",
-              width: 150,
-              render: (v: number, r) =>
-                r.answers ? (
-                  <Progress
-                    percent={Math.round(v * 100)}
-                    size="small"
-                    strokeColor={v >= 0.6 ? "#58CC02" : v >= 0.4 ? "#FF9600" : "#FF4B4B"}
-                  />
+      <BentoCard
+        span={3}
+        tone={quality.needs_attention.length ? "red" : "plain"}
+        title="Gây khó nhất"
+      >
+        {quality.needs_attention.length === 0 ? (
+          <Typography.Text style={{ color: "var(--ai-muted)", fontSize: 13 }}>
+            Không có slide nào đáng lo.
+          </Typography.Text>
+        ) : (
+          <ul className="m-0 list-none space-y-1.5 p-0">
+            {quality.needs_attention.slice(0, 4).map((s) => (
+              <li key={s.slide_index} className="flex items-center gap-2 text-xs font-bold">
+                <span
+                  className="grid h-5 w-5 shrink-0 place-items-center rounded-md text-[10px] font-extrabold"
+                  style={{ background: "var(--ai-red)", color: "#fff" }}
+                >
+                  {s.slide_index + 1}
+                </span>
+                <span className="min-w-0 flex-1 truncate">{s.title || "(không tiêu đề)"}</span>
+                {s.answers ? (
+                  <span style={{ color: "var(--ai-red)" }}>{pct(s.correct_rate)}</span>
                 ) : (
-                  <Typography.Text type="secondary">chưa có</Typography.Text>
-                ),
-            },
-            {
-              title: "Bỏ qua",
-              dataIndex: "skip_rate",
-              width: 90,
-              align: "right",
-              render: (v: number, r) => (r.answers ? pct(v) : "—"),
-            },
-            {
-              title: "Quay lại",
-              dataIndex: "return_visits",
-              width: 100,
-              align: "right",
-            },
-            {
-              title: "Hỏi / gợi ý",
-              key: "asks",
-              width: 110,
-              align: "right",
-              render: (_, r) => `${r.questions_asked} / ${r.hints_requested}`,
-            },
-          ]}
-        />
-      </Card>
-    </Space>
+                  <span style={{ color: "var(--ai-muted)" }}>
+                    {s.return_visits} lần quay lại
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </BentoCard>
+
+      <BentoCard span={6} title="Chi tiết từng slide" className="!p-0">
+        <div className="p-2">
+          <Table<SlideQuality>
+            rowKey="slide_index"
+            dataSource={quality.slides}
+            pagination={false}
+            size="small"
+            scroll={{ x: 860 }}
+            columns={[
+              { title: "#", dataIndex: "slide_index", width: 56, render: (v: number) => v + 1 },
+              { title: "Tiêu đề", dataIndex: "title", ellipsis: true },
+              {
+                title: "Checkpoint",
+                dataIndex: "has_checkpoint",
+                width: 110,
+                render: (v: boolean, r) =>
+                  v ? (
+                    <Tag color="red">{r.question_count} câu</Tag>
+                  ) : (
+                    <Typography.Text type="secondary">—</Typography.Text>
+                  ),
+              },
+              { title: "Trả lời", dataIndex: "answers", width: 80, align: "right" },
+              {
+                title: "Đúng",
+                dataIndex: "correct_rate",
+                width: 130,
+                render: (v: number, r) =>
+                  r.answers ? (
+                    <BentoBar value={v} />
+                  ) : (
+                    <Typography.Text type="secondary">chưa có</Typography.Text>
+                  ),
+              },
+              {
+                title: "Bỏ qua",
+                dataIndex: "skip_rate",
+                width: 84,
+                align: "right",
+                render: (v: number, r) => (r.answers ? pct(v) : "—"),
+              },
+              { title: "Quay lại", dataIndex: "return_visits", width: 92, align: "right" },
+              {
+                title: "Hỏi / gợi ý",
+                key: "asks",
+                width: 104,
+                align: "right",
+                render: (_, r) => `${r.questions_asked} / ${r.hints_requested}`,
+              },
+            ]}
+          />
+        </div>
+      </BentoCard>
+    </BentoGrid>
   );
 }

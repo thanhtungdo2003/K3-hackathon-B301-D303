@@ -285,6 +285,30 @@ export interface CourseQuality {
   needs_attention: SlideQuality[];
 }
 
+export interface ToolCall {
+  tool: string;
+  label: string;
+  args: Record<string, unknown>;
+  ok: boolean;
+  error: string;
+  result: Record<string, unknown>;
+}
+
+export interface AssistantTurn {
+  reply: string;
+  calls: ToolCall[];
+  source: "llm" | "rule_fallback" | "unavailable";
+  /** true khi trợ lý vừa tạo/sửa dữ liệu — giao diện phải nạp lại số liệu. */
+  changed: boolean;
+  trace_id: string | null;
+}
+
+export interface AssistantStatus {
+  available: boolean;
+  model: string | null;
+  tools: { name: string; label: string }[];
+}
+
 export interface JoinResult {
   token: string;
   participant_id: number;
@@ -403,6 +427,11 @@ export const api = {
       method: "POST",
       body: body({ feedback, note }),
     }),
+
+  /* --- trợ lý AI của dashboard --- */
+  assistantStatus: () => request<AssistantStatus>("/assistant/status"),
+  assistantChat: (messages: { role: "user" | "assistant"; content: string }[]) =>
+    request<AssistantTurn>("/assistant/chat", { method: "POST", body: body({ messages }) }),
 
   /* --- dashboard chủ phòng --- */
   overview: () => request<Overview>("/insights/overview"),

@@ -1,6 +1,6 @@
 "use client";
 
-/** Phòng học: mở mã lớp, bắt đầu / kết thúc buổi dạy. */
+/** Phòng học — lưới Bento: mã lớp là thứ to nhất trên mỗi ô. */
 import {
   DeleteOutlined,
   DesktopOutlined,
@@ -8,27 +8,25 @@ import {
   PlusOutlined,
   PoweroffOutlined,
   ReloadOutlined,
+  WarningFilled,
 } from "@ant-design/icons";
 import {
   Alert,
   App,
   Button,
-  Card,
-  Col,
-  Empty,
   Form,
   Input,
   Modal,
-  Row,
   Select,
-  Space,
   Spin,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { BentoCard, BentoGrid, BentoStat } from "@/components/ai/Bento";
 import { api, type CourseOut, type RoomOut } from "@/lib/api";
 
 export default function RoomsPage() {
@@ -62,6 +60,7 @@ export default function RoomsPage() {
   }, [load]);
 
   const ready = courses.filter((c) => c.slide_count > 0);
+  const liveCount = rooms.filter((r) => r.active_session_id).length;
 
   async function create() {
     const values = await form.validateFields();
@@ -112,13 +111,27 @@ export default function RoomsPage() {
     });
   }
 
+  async function copyCode(code: string) {
+    try {
+      await navigator.clipboard.writeText(code);
+      message.success(`Đã chép mã ${code}.`);
+    } catch {
+      message.info(`Mã phòng: ${code}`);
+    }
+  }
+
   return (
-    <Space orientation="vertical" size="large" style={{ width: "100%" }}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Typography.Title level={3} style={{ margin: 0 }}>
-          Phòng học
-        </Typography.Title>
-        <Space>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <Typography.Text style={{ color: "var(--ai-muted)", fontWeight: 700, fontSize: 12 }}>
+            LỚP ĐANG MỞ
+          </Typography.Text>
+          <Typography.Title level={3} style={{ margin: 0, color: "var(--ai-ink)" }}>
+            Phòng học
+          </Typography.Title>
+        </div>
+        <div className="flex gap-2">
           <Button icon={<ReloadOutlined />} onClick={load} loading={loading} />
           <Button
             type="primary"
@@ -128,101 +141,149 @@ export default function RoomsPage() {
           >
             Phòng mới
           </Button>
-        </Space>
+        </div>
       </div>
 
       {error ? <Alert type="error" showIcon title={error} /> : null}
 
-      {!loading && ready.length === 0 ? (
-        <Alert
-          type="info"
-          showIcon
-          title="Chưa có khoá học nào đủ điều kiện mở phòng"
-          description="Phòng học phải gắn với một khoá học đã có slide. Hãy tạo khoá học và tải file PPTX lên trước."
-          action={
-            <Link href="/dashboard/courses">
-              <Button type="primary">Tới khoá học</Button>
-            </Link>
-          }
-        />
-      ) : null}
-
       {loading ? (
-        <div className="grid place-items-center py-20">
+        <div className="grid place-items-center py-24">
           <Spin size="large" />
         </div>
-      ) : rooms.length === 0 ? (
-        <Card>
-          <Empty description="Chưa có phòng học nào" />
-        </Card>
       ) : (
-        <Row gutter={[16, 16]}>
-          {rooms.map((room) => (
-            <Col key={room.id} xs={24} md={12} xl={8}>
-              <Card
-                title={
-                  <Space>
-                    <DesktopOutlined />
-                    {room.name}
-                  </Space>
-                }
-                extra={
-                  <Button
-                    type="text"
-                    danger
-                    icon={<DeleteOutlined />}
-                    aria-label="Xoá phòng"
-                    onClick={() => remove(room)}
-                  />
-                }
-              >
-                <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
-                  <div>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      MÃ PHÒNG CHO HỌC VIÊN
-                    </Typography.Text>
-                    <div
-                      className="mt-1 rounded-lg border-2 border-line bg-sunken px-4 py-3 text-center text-3xl font-extrabold"
-                      style={{ letterSpacing: 6 }}
-                    >
-                      {room.code}
-                    </div>
+        <BentoGrid>
+          {!loading && ready.length === 0 ? (
+            <BentoCard span={6} tone="red" title="Chưa mở phòng được">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-start gap-2 text-sm font-semibold">
+                  <WarningFilled style={{ color: "var(--ai-red)", marginTop: 3 }} />
+                  <span>
+                    Phòng học phải gắn với một khoá học đã có slide. Hãy tạo khoá học và tải file
+                    PPTX lên trước.
+                  </span>
+                </div>
+                <Link href="/dashboard/courses">
+                  <Button type="primary">Tới khoá học</Button>
+                </Link>
+              </div>
+            </BentoCard>
+          ) : null}
+
+          {rooms.length > 0 ? (
+            <>
+              <BentoStat label="Phòng học" value={rooms.length} icon={<DesktopOutlined />} />
+              <BentoStat
+                label="Đang mở"
+                value={liveCount}
+                hint={liveCount ? "học viên vào được" : "chưa có buổi nào mở"}
+                tone={liveCount ? "navy" : "plain"}
+                icon={<PlayCircleOutlined />}
+              />
+              <BentoStat
+                label="Buổi đã dạy"
+                value={rooms.reduce((n, r) => n + r.total_sessions, 0)}
+              />
+            </>
+          ) : null}
+
+          {rooms.length === 0 && ready.length > 0 ? (
+            <BentoCard span={6} tone="navy">
+              <div className="flex flex-wrap items-center justify-between gap-4 py-2">
+                <div>
+                  <div className="text-xl font-extrabold">Chưa có phòng học nào</div>
+                  <div className="text-sm font-semibold" style={{ opacity: 0.78 }}>
+                    Mỗi phòng có một mã 5 ký tự để học viên vào lớp.
                   </div>
+                </div>
+                <Button
+                  type="primary"
+                  danger
+                  size="large"
+                  icon={<PlusOutlined />}
+                  onClick={() => setOpen(true)}
+                >
+                  Tạo phòng
+                </Button>
+              </div>
+            </BentoCard>
+          ) : null}
 
-                  <Space size={4} wrap>
-                    <Tag color="blue">{room.course_title}</Tag>
-                    <Tag>{room.total_sessions} buổi</Tag>
-                    {room.active_session_id ? <Tag color="green">đang mở</Tag> : null}
-                  </Space>
+          {/* mỗi phòng một ô; phòng đang mở được tô nền xanh đậm */}
+          {rooms.map((room) => {
+            const live = Boolean(room.active_session_id);
+            return (
+              <BentoCard key={room.id} span={3} tone={live ? "navy" : "plain"}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-base font-extrabold" title={room.name}>
+                      {room.name}
+                    </div>
+                    <div className="bento-label">{room.course_title}</div>
+                  </div>
+                  <Tooltip title="Xoá phòng">
+                    <Button
+                      type="text"
+                      danger
+                      size="small"
+                      icon={<DeleteOutlined />}
+                      aria-label="Xoá phòng"
+                      onClick={() => remove(room)}
+                    />
+                  </Tooltip>
+                </div>
 
-                  <Space wrap>
-                    {room.active_session_id ? (
-                      <>
-                        <Link href={`/teach/${room.active_session_id}`}>
-                          <Button type="primary" icon={<PlayCircleOutlined />}>
-                            Vào Bục Giảng
-                          </Button>
-                        </Link>
-                        <Button danger icon={<PoweroffOutlined />} onClick={() => end(room)}>
-                          Kết thúc
+                {/* mã lớp — thứ giảng viên đọc to cho cả lớp */}
+                <button
+                  onClick={() => copyCode(room.code)}
+                  title="Bấm để chép mã"
+                  className="w-full rounded-xl py-3 text-center text-3xl font-extrabold transition-opacity hover:opacity-85"
+                  style={{
+                    letterSpacing: 8,
+                    background: live ? "rgba(255,255,255,.14)" : "var(--ai-bg)",
+                    border: live ? "1px solid rgba(255,255,255,.2)" : "1px solid var(--ai-line)",
+                    color: live ? "#fff" : "var(--ai-navy)",
+                  }}
+                >
+                  {room.code}
+                </button>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Tag style={{ marginInlineEnd: 0 }}>{room.total_sessions} buổi</Tag>
+                  {live ? (
+                    <Tag color="red" style={{ marginInlineEnd: 0 }}>
+                      đang mở
+                    </Tag>
+                  ) : null}
+                </div>
+
+                <div className="mt-auto flex flex-wrap gap-2">
+                  {live ? (
+                    <>
+                      <Link href={`/teach/${room.active_session_id}`} className="flex-1">
+                        <Button block type="primary" danger icon={<PlayCircleOutlined />}>
+                          Vào Bục Giảng
                         </Button>
-                      </>
-                    ) : (
-                      <Button
-                        type="primary"
-                        icon={<PlayCircleOutlined />}
-                        loading={starting === room.id}
-                        onClick={() => start(room)}
-                      >
-                        Bắt đầu buổi học
+                      </Link>
+                      <Button icon={<PoweroffOutlined />} onClick={() => end(room)}>
+                        Kết thúc
                       </Button>
-                    )}
-                  </Space>
-                </Space>
-              </Card>
-            </Col>
-          ))}
-        </Row>
+                    </>
+                  ) : (
+                    <Button
+                      block
+                      type="primary"
+                      icon={<PlayCircleOutlined />}
+                      loading={starting === room.id}
+                      onClick={() => start(room)}
+                    >
+                      Bắt đầu buổi học
+                    </Button>
+                  )}
+                </div>
+              </BentoCard>
+            );
+          })}
+        </BentoGrid>
       )}
 
       <Modal
@@ -258,6 +319,6 @@ export default function RoomsPage() {
           </Form.Item>
         </Form>
       </Modal>
-    </Space>
+    </div>
   );
 }

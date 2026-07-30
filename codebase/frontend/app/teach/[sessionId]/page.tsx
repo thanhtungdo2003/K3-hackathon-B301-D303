@@ -24,7 +24,6 @@ import {
   Descriptions,
   Empty,
   Layout,
-  List,
   Progress,
   Row,
   Space,
@@ -266,7 +265,7 @@ export default function LecternPage() {
   const ended = board?.ended ?? false;
 
   return (
-    <Layout style={{ minHeight: "100vh" }}>
+    <Layout className="ai-shell" style={{ minHeight: "100vh" }}>
       <Header
         style={{
           display: "flex",
@@ -274,6 +273,7 @@ export default function LecternPage() {
           gap: 16,
           paddingInline: 20,
           borderBottom: "1px solid var(--c-line)",
+          backgroundColor: "white"
         }}
       >
         <Link href="/dashboard/rooms">
@@ -404,44 +404,50 @@ export default function LecternPage() {
                   ) : null}
                 </Empty>
               ) : (
-                <List
-                  dataSource={questions}
-                  renderItem={(q) => {
+                <ul className="m-0 list-none space-y-2 p-0">
+                  {questions.map((q) => {
                     const live = openQuestionId === q.id;
                     return (
-                      <List.Item
-                        actions={[
-                          <Button
-                            key="open"
-                            type={live ? "default" : "primary"}
-                            danger={live}
-                            disabled={ended}
-                            onClick={() => openQuestion(live ? null : q)}
-                          >
-                            {live ? "Đang mở — đóng lại" : "Mở câu hỏi"}
-                          </Button>,
-                        ]}
+                      <li
+                        key={q.id}
+                        className="flex flex-wrap items-center gap-3 rounded-xl px-3 py-3"
+                        style={{
+                          background: "var(--ai-bg)",
+                          border: live
+                            ? "1px solid var(--ai-red)"
+                            : "1px solid var(--ai-line)",
+                        }}
                       >
-                        <List.Item.Meta
-                          title={
-                            <Space>
-                              <Typography.Text strong={live}>{q.prompt}</Typography.Text>
-                              {live ? <Badge status="processing" text="lớp đang thấy" /> : null}
-                            </Space>
-                          }
-                          description={
-                            <Space size={4} wrap>
-                              {q.options.map((o, i) => (
-                                <Tag key={i}>{o}</Tag>
-                              ))}
-                              {q.origin === "llm" ? <Tag color="purple">nháp AI</Tag> : null}
-                            </Space>
-                          }
-                        />
-                      </List.Item>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Typography.Text strong={live}>{q.prompt}</Typography.Text>
+                            {live ? <Badge status="processing" text="lớp đang thấy" /> : null}
+                          </div>
+                          <Space size={4} wrap style={{ marginTop: 6 }}>
+                            {q.options.map((o, i) => (
+                              <Tag key={i} style={{ marginInlineEnd: 0 }}>
+                                {o}
+                              </Tag>
+                            ))}
+                            {q.origin === "llm" ? (
+                              <Tag color="purple" style={{ marginInlineEnd: 0 }}>
+                                nháp AI
+                              </Tag>
+                            ) : null}
+                          </Space>
+                        </div>
+                        <Button
+                          type={live ? "default" : "primary"}
+                          danger={live}
+                          disabled={ended}
+                          onClick={() => openQuestion(live ? null : q)}
+                        >
+                          {live ? "Đang mở — đóng lại" : "Mở câu hỏi"}
+                        </Button>
+                      </li>
                     );
-                  }}
-                />
+                  })}
+                </ul>
               )}
             </Card>
           </Col>
@@ -532,16 +538,20 @@ export default function LecternPage() {
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                       PHƯƠNG ÁN SAI PHỔ BIẾN
                     </Typography.Text>
-                    <List
-                      size="small"
-                      dataSource={metrics.top_wrong_options}
-                      renderItem={(o) => (
-                        <List.Item>
-                          <Typography.Text>{o.option}</Typography.Text>
-                          <Tag color="red">{o.count}</Tag>
-                        </List.Item>
-                      )}
-                    />
+                    <ul className="m-0 mt-1 list-none space-y-1 p-0">
+                      {metrics.top_wrong_options.map((o, i) => (
+                        <li
+                          key={i}
+                          className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5"
+                          style={{ background: "var(--ai-bg)" }}
+                        >
+                          <Typography.Text style={{ fontSize: 13 }}>{o.option}</Typography.Text>
+                          <Tag color="red" style={{ marginInlineEnd: 0 }}>
+                            {o.count}
+                          </Tag>
+                        </li>
+                      ))}
+                    </ul>
                   </>
                 ) : null}
               </Card>
@@ -555,25 +565,23 @@ export default function LecternPage() {
                 }
               >
                 {board?.inbox?.length ? (
-                  <List
-                    size="small"
-                    dataSource={board.inbox}
-                    renderItem={(item) => (
-                      <List.Item>
-                        <List.Item.Meta
-                          title={
-                            <Typography.Text style={{ fontSize: 13 }}>{item.text}</Typography.Text>
-                          }
-                          description={
-                            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                              slide {item.slide_index + 1} ·{" "}
-                              {new Date(item.at).toLocaleTimeString("vi-VN")}
-                            </Typography.Text>
-                          }
-                        />
-                      </List.Item>
-                    )}
-                  />
+                  <ul className="m-0 list-none space-y-2 p-0">
+                    {board.inbox.map((item, i) => (
+                      <li
+                        key={i}
+                        className="rounded-xl px-3 py-2"
+                        style={{ background: "var(--ai-bg)" }}
+                      >
+                        <Typography.Text style={{ fontSize: 13 }}>{item.text}</Typography.Text>
+                        <div>
+                          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                            slide {item.slide_index + 1} ·{" "}
+                            {new Date(item.at).toLocaleTimeString("vi-VN")}
+                          </Typography.Text>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                 ) : (
                   <Empty
                     image={Empty.PRESENTED_IMAGE_SIMPLE}

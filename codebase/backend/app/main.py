@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import realtime
 from .config import get_settings
 from .db import Base, engine
-from .routers import auth, courses, insights, rooms, student, teaching
+from .routers import assistant, auth, courses, insights, rooms, student, teaching
 
 settings = get_settings()
 
@@ -30,6 +30,7 @@ api.include_router(courses.router)
 api.include_router(rooms.router)
 api.include_router(teaching.router)
 api.include_router(insights.router)
+api.include_router(assistant.router)
 api.include_router(student.router)
 
 
