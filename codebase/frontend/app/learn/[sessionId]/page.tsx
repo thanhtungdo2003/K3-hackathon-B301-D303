@@ -3,6 +3,7 @@
 /** Màn hình của học viên trong buổi học. */
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import BlockConfirm from "@/components/BlockConfirm";
 import type { Socket } from "socket.io-client";
 import { BlockButton, BlockCard } from "@/components/Blocks";
 import SlideCanvas from "@/components/SlideCanvas";
@@ -58,6 +59,7 @@ export default function LearnPage() {
   const [handRaised, setHandRaised] = useState(false);
   const [hints, setHints] = useState<{ id: number; questions: string[] } | null>(null);
   const [hintBusy, setHintBusy] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const [trackingReady, setTrackingReady] = useState(false);
   const [trackingActive, setTrackingActive] = useState<boolean | null>(null);
   const [syncDeadline, setSyncDeadline] = useState<number | null>(null);
@@ -718,11 +720,11 @@ export default function LearnPage() {
         <ThemeToggle />
         <BlockButton
           square
-          tone="plain"
+          tone="warning"
           aria-label="Rời lớp"
           title="Rời lớp"
           icon={Icon.exit}
-          onClick={leave}
+          onClick={() => setConfirmLeave(true)}
         />
       </header>
       <div className="flex gap-2">
@@ -973,6 +975,23 @@ export default function LearnPage() {
           </BlockCard>
         ) : null}
       </div>
+
+      <BlockConfirm
+        open={confirmLeave}
+        icon={Icon.exit}
+        tone="cherry"
+        title="Rời lớp bây giờ?"
+        description={
+          ended
+            ? "Buổi học đã kết thúc, bạn rời lớp lúc nào cũng được."
+            : "Lớp vẫn đang học. Rời xong muốn vào lại thì phải gõ mã phòng lần nữa."
+        }
+        confirmLabel="Rời lớp"
+        confirmIcon={Icon.exit}
+        cancelLabel="Ở lại học tiếp"
+        onConfirm={leave}
+        onCancel={() => setConfirmLeave(false)}
+      />
     </main>
   );
 }

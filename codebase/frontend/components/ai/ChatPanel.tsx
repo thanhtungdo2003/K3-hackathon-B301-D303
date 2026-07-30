@@ -166,7 +166,7 @@ export default function ChatPanel({ onChanged, onOpenChange }: { onChanged?: () 
           <div className="text-sm font-extrabold">Trợ lý dựng lớp</div>
           <div className="truncate text-xs" style={{ color: "rgba(255,255,255,.7)" }}>
             {status?.available
-              ? `${status.model} · ${status.tools.length} công cụ`
+              ? `${status.tools.length} công cụ`
               : "chưa cấu hình khoá"}
           </div>
         </div>
