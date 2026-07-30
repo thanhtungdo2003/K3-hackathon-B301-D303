@@ -19,7 +19,7 @@ import {
   type PresentDirection,
   type PresentMessage,
 } from "@/lib/presentation";
-import { joinRoom } from "@/lib/socket";
+import { joinPresentationView } from "@/lib/socket";
 
 type Zone = "left" | "center" | "right";
 
@@ -133,13 +133,16 @@ export default function PresentPage() {
     };
   }, [sessionId, goTo]);
 
+  // Socket là nguồn đúng cuối cùng: cửa sổ này vẫn bám đúng slide kể cả khi
+  // BroadcastChannel không dùng được (tải lại trang, mở ở trình duyệt khác).
   useEffect(() => {
     if (!Number.isFinite(sessionId)) return;
-    const socket = joinRoom(sessionId, "student");
+    const handle = joinPresentationView(sessionId);
     const onSlide = (p: { slide_index: number }) => goTo(p.slide_index, "jump");
-    socket.on("slide_changed", onSlide);
+    handle.socket.on("slide_changed", onSlide);
     return () => {
-      socket.off("slide_changed", onSlide);
+      handle.socket.off("slide_changed", onSlide);
+      handle.dispose();
     };
   }, [sessionId, goTo]);
 

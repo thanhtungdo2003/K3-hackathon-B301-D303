@@ -14,6 +14,7 @@ export interface SessionSocketHandle {
   dispose: () => void;
 }
 
+
 function createSessionHandle(
   payload: () => Record<string, unknown>,
 ): SessionSocketHandle {
@@ -73,5 +74,19 @@ export function joinLecturerSession(
     session_id: sessionId,
     role: "lecturer",
     token,
+  }));
+}
+
+/**
+ * Màn hình chỉ xem — cửa sổ trình chiếu chiếu lên máy chiếu.
+ *
+ * Join role student nhưng KHÔNG gửi token: backend bỏ qua nhánh tracking và chỉ
+ * cho vào room của buổi học, nên vẫn nhận được `slide_changed`. Cửa sổ này không
+ * đại diện cho học viên nào nên cũng không được tính vào sĩ số hay tracking.
+ */
+export function joinPresentationView(sessionId: number): SessionSocketHandle {
+  return createSessionHandle(() => ({
+    session_id: sessionId,
+    role: "student",
   }));
 }

@@ -187,7 +187,6 @@ export default function JoinPage() {
                   }}
                   placeholder="Tên bạn muốn lớp thấy"
                   maxLength={40}
-                  pattern="^[a-zA-Z0-9\s]{1,40}$"
                   required
                 />
                 <BlockButton
