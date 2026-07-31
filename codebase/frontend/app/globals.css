@@ -243,3 +243,321 @@ body {
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Màn học viên: slide lớn + panel hỗ trợ co giãn ─────────────────────── */
+
+.student-classroom {
+  width: min(1680px, 100%);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 18px 24px 28px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "header"
+    "notice"
+    "stage"
+    "controls";
+  gap: 14px;
+  align-content: start;
+  transition: grid-template-columns 240ms ease;
+}
+
+.student-classroom--panel {
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 450px);
+  grid-template-areas:
+    "header header"
+    "notice panel"
+    "stage panel"
+    "controls panel";
+  column-gap: 20px;
+}
+
+.student-classroom__header { grid-area: header; }
+.student-classroom__notice { grid-area: notice; }
+.student-classroom__stage {
+  grid-area: stage;
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  align-items: center;
+  justify-self: center;
+}
+.student-classroom__stage canvas {
+  width: 80%;
+  max-height: calc(100vh - 170px);
+  object-fit: contain;
+  justify-self: center;
+  transition: width 240ms ease;
+}
+.student-classroom__controls { grid-area: controls; }
+.student-classroom__panel {
+  grid-area: panel;
+  min-width: 0;
+  align-self: start;
+  position: sticky;
+  top: 14px;
+}
+
+.student-question-panel {
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+
+.ai-help-panel {
+  height: min(780px, calc(100vh - 32px));
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  color: var(--c-ink);
+  background: var(--c-surface);
+  border: 2px solid var(--c-line);
+  border-bottom-width: 4px;
+  border-radius: 1.15rem;
+}
+
+.ai-help-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 26px 28px 22px;
+  border-bottom: 2px solid var(--c-line);
+}
+
+.ai-help-panel__eyebrow {
+  margin: 0 0 8px;
+  color: #a863d6;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.ai-help-panel__head h2 {
+  margin: 0;
+  color: var(--c-ink);
+  font-size: 25px;
+  font-weight: 700;
+}
+
+.ai-help-panel__close {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  color: var(--c-muted);
+  background: var(--c-sunken);
+  border: 2px solid var(--c-line);
+  border-bottom-width: 4px;
+  border-radius: 14px;
+}
+
+.ai-help-panel__tabs {
+  margin: 18px 24px 14px;
+  padding: 5px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--c-sunken);
+  border: 2px solid var(--c-line);
+  border-radius: 16px;
+}
+
+.ai-help-panel__tabs button {
+  padding: 12px 14px;
+  color: var(--c-muted);
+  font-size: 14px;
+  font-weight: 800;
+  border-radius: 11px;
+}
+
+.ai-help-panel__tabs button.is-active {
+  color: #ffffff;
+  background: #ce82ff;
+}
+
+.ai-help-panel__scope {
+  margin: 8px 24px 14px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--c-muted);
+  background: var(--c-sunken);
+  border: 2px solid #1cb0f6;
+  border-radius: 15px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.ai-help-panel__summary {
+  margin: 0 24px 14px;
+  padding: 15px 16px;
+  color: var(--c-ink);
+  background: var(--c-sunken);
+  border: 2px solid var(--c-line);
+  border-radius: 15px;
+}
+
+.ai-help-panel__summary span {
+  display: block;
+  margin-bottom: 6px;
+  color: #a863d6;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.ai-help-panel__summary p,
+.ai-message p,
+.ai-help-panel__ticket p {
+  margin: 0;
+}
+
+.ai-help-panel__messages {
+  min-height: 0;
+  flex: 1;
+  padding: 0 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.ai-message {
+  max-width: 90%;
+  padding: 13px 15px;
+  border-radius: 15px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.ai-message small {
+  display: block;
+  margin-top: 7px;
+  color: #1487bd;
+  font-weight: 800;
+}
+
+.ai-message--student {
+  align-self: flex-end;
+  color: #ffffff;
+  background: #ce82ff;
+}
+
+.ai-message--ai {
+  align-self: flex-start;
+  color: var(--c-ink);
+  background: var(--c-sunken);
+  border: 2px solid var(--c-line);
+}
+
+.ai-help-panel__suggestion {
+  width: 100%;
+  padding: 12px 14px;
+  color: var(--c-ink);
+  background: var(--c-surface);
+  border: 2px solid #ce82ff;
+  border-bottom-width: 4px;
+  border-radius: 13px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.ai-help-panel__composer {
+  padding: 16px 20px;
+  display: flex;
+  gap: 10px;
+  border-top: 2px solid var(--c-line);
+}
+
+.ai-help-panel__composer input {
+  min-width: 0;
+  flex: 1;
+  padding: 13px 15px;
+  color: var(--c-ink);
+  background: var(--c-sunken);
+  border: 2px solid var(--c-line);
+  border-bottom-width: 4px;
+  border-radius: 14px;
+  outline: none;
+}
+
+.ai-help-panel__composer input:focus { border-color: #1cb0f6; }
+.ai-help-panel__composer button {
+  width: 50px;
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  background: #1cb0f6;
+  border-bottom: 4px solid #1487bd;
+  border-radius: 14px;
+}
+.ai-help-panel__composer button:disabled { opacity: 0.45; }
+
+.ai-help-panel__human {
+  min-height: 0;
+  flex: 1;
+  padding: 6px 24px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.ai-help-panel__human > p { color: var(--c-muted); font-size: 13px; }
+.ai-help-panel__human textarea {
+  min-height: 100px;
+  padding: 14px;
+  resize: vertical;
+  color: var(--c-ink);
+  background: var(--c-sunken);
+  border: 2px solid var(--c-line);
+  border-bottom-width: 4px;
+  border-radius: 15px;
+  outline: none;
+}
+.ai-help-panel__human > button {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #ffffff;
+  background: #1cb0f6;
+  border-bottom: 4px solid #1487bd;
+  border-radius: 13px;
+  font-weight: 850;
+}
+.ai-help-panel__human > button:disabled { opacity: 0.45; }
+.ai-help-panel__ticket {
+  padding: 13px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  background: var(--c-sunken);
+  border: 2px solid var(--c-line);
+  border-radius: 14px;
+}
+.ai-help-panel__ticket small { color: #1487bd; }
+.ai-help-panel__ticket strong { color: var(--c-ink); font-size: 13px; }
+
+@media (max-width: 980px) {
+  .student-classroom,
+  .student-classroom--panel {
+    padding: 12px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "header"
+      "notice"
+      "stage"
+      "controls"
+      "panel";
+  }
+  .student-classroom__panel {
+    position: static;
+  }
+  .ai-help-panel {
+    height: min(720px, calc(100vh - 24px));
+  }
+}

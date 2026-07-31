@@ -7,13 +7,15 @@ from sqlalchemy.orm import Session as DbSession
 
 from .. import realtime
 from ..db import get_db
-from ..models import Advice, LearningEvent, Question, Session, Slide, StudentHint, User
-from ..modules import advisor, analytics, state_engine
+from ..models import Advice, LearningEvent, Question, Session, Slide, StudentHint, SupportQuestion, User, utcnow
+from ..modules import advisor, analytics, auto_questions, state_engine
 from ..schemas import (
     AdviceRequest,
     FeedbackRequest,
     QuestionOut,
     SlideChangeRequest,
+    SupportAnswerRequest,
+    SupportQuestionOut,
     TriggerQuestionRequest,
 )
 from ..security import current_user
@@ -47,11 +49,13 @@ async def change_slide(
     user: User = Depends(current_user),
 ) -> dict:
     session = _owned_session(db, session_id, user)
-    if _slide(db, session, payload.slide_index) is None:
+    slide = _slide(db, session, payload.slide_index)
+    if slide is None:
         raise HTTPException(status_code=404, detail="Slide không tồn tại trong khoá học.")
 
+    questions = auto_questions.ensure_for_slide(db, slide)
     session.current_slide_index = payload.slide_index
-    session.current_question_id = None
+    session.current_question_id = questions[0].id if questions else None
     db.commit()
 
     await realtime.lecturer_slide_changed(session_id, payload.slide_index)
@@ -60,7 +64,31 @@ async def change_slide(
         "slide_changed",
         {"session_id": session_id, "slide_index": payload.slide_index},
     )
-    return {"slide_index": payload.slide_index}
+    question_payloads = [
+        {
+            "id": question.id,
+            "type": question.type,
+            "prompt": question.prompt,
+            "options": question.options,
+            "slide_index": slide.index,
+        }
+        for question in questions
+    ]
+    if question_payloads:
+        # Event đơn giữ tương thích client cũ; event cụm phát sau để client mới giữ đủ 1-2 câu.
+        await realtime.broadcast(session_id, "question_opened", question_payloads[0])
+        await realtime.broadcast(
+            session_id,
+            "questions_opened",
+            {"session_id": session_id, "questions": question_payloads},
+        )
+    else:
+        await realtime.broadcast(session_id, "question_closed", {"session_id": session_id})
+    return {
+        "slide_index": payload.slide_index,
+        "current_question_id": session.current_question_id,
+        "questions": question_payloads,
+    }
 
 
 @router.get("/{session_id}/checkpoint", response_model=list[QuestionOut])
@@ -74,7 +102,7 @@ def current_checkpoint(
     session = _owned_session(db, session_id, user)
     index = session.current_slide_index if slide_index is None else slide_index
     slide = _slide(db, session, index)
-    if slide is None or slide.checkpoint is None or not slide.checkpoint.active:
+    if slide is None or slide.checkpoint is None:
         return []
     return [
         QuestionOut(
@@ -156,9 +184,9 @@ def dashboard(
         select(Advice).where(Advice.session_id == session_id).order_by(Advice.created_at.desc())
     )
     questions = db.scalars(
-        select(LearningEvent)
-        .where(LearningEvent.session_id == session_id, LearningEvent.type == "ask_question")
-        .order_by(LearningEvent.created_at.desc())
+        select(SupportQuestion)
+        .where(SupportQuestion.session_id == session_id)
+        .order_by(SupportQuestion.created_at.desc())
         .limit(8)
     ).all()
 
@@ -171,11 +199,19 @@ def dashboard(
         "ended": session.ended_at is not None,
         "inbox": [
             {
-                "text": str(e.payload.get("text", ""))[:300],
-                "slide_index": e.slide_index,
-                "at": e.created_at.isoformat(),
+                "id": question.id,
+                "text": question.text,
+                "slide_index": question.slide_index,
+                "confusion_score": question.confusion_score,
+                "confusion_threshold": 0.60,
+                "escalated": question.escalated,
+                "status": question.status,
+                "answer_text": question.answer_text,
+                "answered_by": question.answered_by,
+                "answer_disclaimer": question.answer_disclaimer,
+                "at": question.created_at.isoformat(),
             }
-            for e in questions
+            for question in questions
         ],
         "latest_advice": (
             {
@@ -193,6 +229,40 @@ def dashboard(
             else None
         ),
     }
+
+
+@router.post(
+    "/{session_id}/support-questions/{question_id}/answer",
+    response_model=SupportQuestionOut,
+)
+async def answer_support_question(
+    session_id: int,
+    question_id: int,
+    payload: SupportAnswerRequest,
+    db: DbSession = Depends(get_db),
+    user: User = Depends(current_user),
+) -> SupportQuestion:
+    _owned_session(db, session_id, user)
+    question = db.get(SupportQuestion, question_id)
+    if question is None or question.session_id != session_id:
+        raise HTTPException(status_code=404, detail="Không tìm thấy câu hỏi hỗ trợ.")
+    question.answer_text = payload.text.strip()
+    question.answered_by = payload.answered_by
+    question.answer_disclaimer = None
+    question.status = "answered"
+    question.answered_at = utcnow()
+    db.commit()
+    await realtime.sio.emit(
+        "support_answered",
+        {
+            "id": question.id,
+            "answer_text": question.answer_text,
+            "answered_by": question.answered_by,
+            "answer_disclaimer": None,
+        },
+        room=realtime.participant_room(question.participant_id),
+    )
+    return question
 
 
 @router.post("/{session_id}/advice")

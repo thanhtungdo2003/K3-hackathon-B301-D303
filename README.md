@@ -80,14 +80,18 @@ npm run dev
 
 1. <http://localhost:3000> → **Tạo tài khoản giảng viên**.
 2. **Khoá học** → tạo khoá → **Tải PPTX lên**. File .pptx được đọc thật thành slide vẽ trên canvas.
-3. Chọn một slide dễ hiểu sai → **Đặt checkpoint tại đây** → **Thêm câu hỏi** (hoặc **Soạn nháp bằng AI** nếu đã có khoá Groq).
+3. Câu hỏi kiểm tra được lấy trực tiếp từ nội dung slide. Có thể soạn trước; nếu chưa có, hệ thống tự sinh 1–2 câu khi giảng viên chuyển slide.
 4. **Phòng học** → tạo phòng → đọc **mã 5 ký tự** cho lớp → **Bắt đầu buổi học**.
 5. Học viên mở <http://localhost:3000/join> trên máy khác, gõ mã + tên + chọn avatar. Không cần tài khoản.
-6. Ở Bục Giảng: chuyển slide (lớp tự chuyển theo) → **Mở câu hỏi** khi thấy đúng lúc → học viên trả lời kèm mức tự tin.
+6. Ở Bục Giảng: mỗi lần chuyển slide, lớp tự chuyển theo và 1–2 câu hỏi tự xổ ra cho học viên trả lời kèm mức tự tin.
 7. Mở **Trợ giảng** từ Bục Giảng hoặc thẻ phòng đang hoạt động để theo dõi nhịp hiểu bài, yêu cầu hỗ trợ ẩn danh và trạng thái đồng bộ slide theo thời gian thực.
 8. Khi học viên tự đọc ở slide khác liên tục quá 5 phút, backend phát lệnh đưa màn hình học viên về slide mới nhất của giảng viên.
 9. Bấm **Xin gợi ý**: đủ dữ liệu và lớp đang tắc thì popup cảnh báo bật lên; thiếu dữ liệu thì hệ thống nói thẳng là chưa đủ dữ liệu.
 10. **Tổng quan** và tab **Chất lượng** của khoá học tổng hợp lại sau buổi.
+
+Câu hỏi tự do của học viên được AI chấm mức bối rối. Từ **60%** trở lên, hệ thống ping
+đồng thời giảng viên và trợ giảng. Hàng đợi người thật giữ tối đa 5 câu đang chờ; câu mới
+vượt tải được AI trả lời và luôn hiện chú thích rằng câu trả lời có thể không hoàn toàn chính xác.
 
 ---
 
@@ -148,7 +152,7 @@ Câu trả lời của học viên
 |---|---|
 | Tài khoản giảng viên, khoá học, phòng học, buổi học | Thật |
 | Upload .pptx và đọc thành slide vẽ trên canvas | Thật |
-| Checkpoint + 6 kiểu câu hỏi, chấm bằng luật | Thật |
+| Câu hỏi tự động theo slide + 6 kiểu câu hỏi, chấm bằng luật | Thật |
 | Đồng bộ slide realtime, mở/đóng câu hỏi, tín hiệu học viên | Thật |
 | Tracking lệch slide + lệnh tự đồng bộ sau 5 phút | **Backend đã hoàn tất; frontend chưa tích hợp event** |
 | API dữ liệu cho dashboard Trợ giảng | **Backend đã hoàn tất; giao diện frontend chưa làm** |

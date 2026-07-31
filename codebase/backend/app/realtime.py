@@ -434,6 +434,13 @@ async def to_lecturer(session_id: int, event: str, payload: dict) -> None:
     await sio.emit(event, payload, room=lecturer_room(session_id))
 
 
+async def to_teaching_team(session_id: int, event: str, payload: dict) -> None:
+    """Ping cả kênh giảng viên và dashboard trợ giảng."""
+    # Mọi socket giảng viên đã được đưa vào assistant_room khi xác thực.
+    # Chỉ emit một lần để cùng một tab không nhận trùng sự kiện.
+    await sio.emit(event, payload, room=assistant_room(session_id))
+
+
 async def lecturer_slide_changed(session_id: int, slide_index: int) -> None:
     await tracking.lecturer_changed(session_id, slide_index)
 

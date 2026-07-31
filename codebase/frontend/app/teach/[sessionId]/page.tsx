@@ -8,7 +8,6 @@ import {
   ArrowLeftOutlined,
   BulbOutlined,
   ClockCircleOutlined,
-  CloseCircleOutlined,
   ExpandOutlined,
   LeftOutlined,
   MessageOutlined,
@@ -20,10 +19,10 @@ import {
 import {
   Alert,
   App,
-  Badge,
   Button,
   Empty,
   Layout,
+  Input,
   Space,
   Spin,
   Tag,
@@ -66,6 +65,7 @@ export default function LecternPage() {
   const [popup, setPopup] = useState<Advice | null>(null);
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState("");
+  const [answerDrafts, setAnswerDrafts] = useState<Record<number, string>>({});
   const seenAdvice = useRef<number | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
@@ -131,12 +131,16 @@ export default function LecternPage() {
     };
     socket.on("answer_received", bump);
     socket.on("signal", bump);
+    socket.on("support_question", bump);
+    socket.on("support_answered", bump);
     socket.on("roster_changed", bump);
     socket.on("advice", onAdvice);
     socket.on("session_ended", bump);
     return () => {
       socket.off("answer_received", bump);
       socket.off("signal", bump);
+      socket.off("support_question", bump);
+      socket.off("support_answered", bump);
       socket.off("roster_changed", bump);
       socket.off("advice", onAdvice);
       socket.off("session_ended", bump);
@@ -184,13 +188,19 @@ export default function LecternPage() {
     enabled: Boolean(session) && !board?.ended,
   });
 
-  async function openQuestion(question: QuestionOut | null) {
+  async function answerSupportQuestion(
+    questionId: number,
+    answeredBy: "lecturer" | "assistant" = "lecturer",
+  ) {
+    const text = answerDrafts[questionId]?.trim();
+    if (!text) return;
     try {
-      await api.triggerQuestion(sessionId, question?.id ?? null);
-      message.success(question ? "Đã mở câu hỏi cho lớp." : "Đã đóng câu hỏi.");
+      await api.answerSupportQuestion(sessionId, questionId, { text, answered_by: answeredBy });
+      setAnswerDrafts((drafts) => ({ ...drafts, [questionId]: "" }));
+      message.success("Đã gửi câu trả lời cho học viên.");
       await refresh();
     } catch (err) {
-      message.error(err instanceof Error ? err.message : "Không mở được câu hỏi.");
+      message.error(err instanceof Error ? err.message : "Không gửi được câu trả lời.");
     }
   }
 
@@ -519,37 +529,24 @@ export default function LecternPage() {
         </div>
       </Content>
       <div className="flex gap-4 px-4 pb-4">
-        {/* ── điều khiển checkpoint ───────────────────────────────────── */}
+        {/* Câu hỏi được tạo và phát tự động mỗi khi giảng viên đổi slide. */}
         <BentoCard
           span={4}
           tone={openQuestionId ? "red" : "plain"}
-          title="Checkpoint tại slide này"
+          title="Câu hỏi tự động theo slide"
           extra={
-            openQuestionId ? (
-              <Button
-                danger
-                size="small"
-                icon={<CloseCircleOutlined />}
-                onClick={() => openQuestion(null)}
-                disabled={ended}
-              >
-                Đóng câu hỏi
-              </Button>
-            ) : null
+            <Tag color={openQuestionId ? "processing" : "default"} style={{ marginInlineEnd: 0 }}>
+              {openQuestionId ? "đang hiển thị cho lớp" : "tự phát khi đổi slide"}
+            </Tag>
           }
         >
           {questions.length === 0 ? (
             <div className="flex flex-wrap items-center justify-between gap-3 py-1">
               <span className="text-sm font-semibold" style={{ color: "var(--ai-muted)" }}>
                 {slide?.checkpoint_id
-                  ? "Checkpoint đang tắt hoặc chưa có câu hỏi."
-                  : "Slide này không có checkpoint."}
+                  ? "Bộ câu hỏi đang được chuẩn bị từ nội dung slide."
+                  : "Khi chuyển sang slide khác, hệ thống sẽ tạo và phát 1–2 câu hỏi từ nội dung slide."}
               </span>
-              {session ? (
-                <Link href={`/dashboard/courses/${session.course_id}`}>
-                  <Button size="small">Sửa trong khoá học</Button>
-                </Link>
-              ) : null}
             </div>
           ) : (
             <ul className="m-0 list-none space-y-2 p-0">
@@ -567,7 +564,7 @@ export default function LecternPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <Typography.Text strong={live}>{q.prompt}</Typography.Text>
-                        {live ? <Badge status="processing" text="lớp đang thấy" /> : null}
+                        {live ? <Tag color="green">Đã tự động phát</Tag> : null}
                       </div>
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         {q.options.map((o, i) => (
@@ -582,14 +579,6 @@ export default function LecternPage() {
                         ) : null}
                       </div>
                     </div>
-                    <Button
-                      type={live ? "default" : "primary"}
-                      danger={live}
-                      disabled={ended}
-                      onClick={() => openQuestion(live ? null : q)}
-                    >
-                      {live ? "Đang mở — đóng lại" : "Mở câu hỏi"}
-                    </Button>
                   </li>
                 );
               })}
@@ -609,17 +598,73 @@ export default function LecternPage() {
         >
           {board?.inbox?.length ? (
             <ul className="m-0 max-h-64 list-none space-y-2 overflow-y-auto p-0">
-              {board.inbox.map((item, i) => (
+              {board.inbox.map((item) => (
                 <li
-                  key={i}
+                  key={item.id}
                   className="rounded-xl px-3 py-2"
                   style={{ background: "var(--ai-bg)" }}
                 >
-                  <div className="text-xs font-bold">{item.text}</div>
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <Typography.Text strong style={{ fontSize: 13 }}>
+                      {item.text}
+                    </Typography.Text>
+                    <Tag color={item.escalated ? "red" : "default"} style={{ marginInlineEnd: 0 }}>
+                      bối rối {Math.round(item.confusion_score * 100)}%
+                    </Tag>
+                  </div>
                   <div className="bento-label mt-1" style={{ fontSize: 10 }}>
                     slide {item.slide_index + 1} ·{" "}
-                    {new Date(item.at).toLocaleTimeString("vi-VN")}
+                    {item.at ? new Date(item.at).toLocaleTimeString("vi-VN") : ""}
                   </div>
+                  {item.status === "answered" ? (
+                    <Alert
+                      type={item.answered_by === "ai" ? "warning" : "success"}
+                      showIcon
+                      style={{ marginTop: 8 }}
+                      title={`Đã trả lời bởi ${
+                        item.answered_by === "ai"
+                          ? "AI"
+                          : item.answered_by === "assistant"
+                            ? "trợ giảng"
+                            : "giảng viên"
+                      }`}
+                      description={
+                        <>
+                          {item.answer_text}
+                          {item.answer_disclaimer ? (
+                            <div style={{ marginTop: 4 }}>{item.answer_disclaimer}</div>
+                          ) : null}
+                        </>
+                      }
+                    />
+                  ) : (
+                    <Space.Compact style={{ width: "100%", marginTop: 8 }}>
+                      <Input
+                        value={answerDrafts[item.id] ?? ""}
+                        onChange={(event) =>
+                          setAnswerDrafts((drafts) => ({
+                            ...drafts,
+                            [item.id]: event.target.value,
+                          }))
+                        }
+                        placeholder="Nhập câu trả lời…"
+                        onPressEnter={() => void answerSupportQuestion(item.id, "lecturer")}
+                      />
+                      <Button
+                        type="primary"
+                        onClick={() => void answerSupportQuestion(item.id, "lecturer")}
+                        disabled={!answerDrafts[item.id]?.trim()}
+                      >
+                        GV trả lời
+                      </Button>
+                      <Button
+                        onClick={() => void answerSupportQuestion(item.id, "assistant")}
+                        disabled={!answerDrafts[item.id]?.trim()}
+                      >
+                        TA trả lời
+                      </Button>
+                    </Space.Compact>
+                  )}
                 </li>
               ))}
             </ul>

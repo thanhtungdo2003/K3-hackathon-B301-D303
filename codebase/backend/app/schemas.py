@@ -244,6 +244,48 @@ class HintPickRequest(BaseModel):
     question: str = Field(min_length=1, max_length=300)
 
 
+class SupportQuestionCreate(BaseModel):
+    token: str
+    slide_index: int = Field(ge=0)
+    text: str = Field(min_length=1, max_length=600)
+
+
+class SupportAnswerRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=2000)
+    answered_by: Literal["lecturer", "assistant"] = "lecturer"
+
+
+class SupportQuestionOut(BaseModel):
+    id: int
+    slide_index: int
+    text: str
+    confusion_score: float
+    confusion_threshold: float = 0.60
+    escalated: bool
+    status: Literal["pending", "answered"]
+    answer_text: str | None = None
+    answered_by: Literal["lecturer", "assistant", "ai"] | None = None
+    answer_disclaimer: str | None = None
+    created_at: datetime
+    answered_at: datetime | None = None
+
+
+class AiSupportRequest(BaseModel):
+    token: str
+    slide_index: int = Field(ge=0)
+    message: str = Field(default="", max_length=600)
+
+
+class AiSupportResponse(BaseModel):
+    summary: str
+    answer: str
+    confusion_score: float
+    confusion_threshold: float = 0.60
+    escalated: bool
+    support_question: SupportQuestionOut | None = None
+    disclaimer: str
+
+
 # ── Dữ liệu cho giao diện Trợ giảng (chỉ aggregate/ẩn danh) ─────────────────
 
 class CountRateOut(BaseModel):
@@ -312,8 +354,15 @@ class AssistantDiagnosticOut(BaseModel):
 class AssistantSupportItemOut(BaseModel):
     key: str
     type: Literal["raise_hand", "ask_question"]
+    question_id: int | None = None
     slide_index: int
     text: str
+    confusion_score: float | None = None
+    escalated: bool = False
+    status: Literal["pending", "answered"] | None = None
+    answer_text: str | None = None
+    answered_by: Literal["lecturer", "assistant", "ai"] | None = None
+    answer_disclaimer: str | None = None
     created_at: datetime
     age_seconds: int
 

@@ -234,7 +234,7 @@ export interface TeachingDashboard {
   state: StateInfo;
   current_question_id: number | null;
   ended: boolean;
-  inbox: { text: string; slide_index: number; at: string }[];
+  inbox: SupportQuestion[];
   latest_advice: Advice | null;
 }
 
@@ -383,8 +383,15 @@ export interface AssistantDiagnostic {
 export interface AssistantSupportItem {
   key: string;
   type: "raise_hand" | "ask_question";
+  question_id: number | null;
   slide_index: number;
   text: string;
+  confusion_score: number | null;
+  escalated: boolean;
+  status: "pending" | "answered" | null;
+  answer_text: string | null;
+  answered_by: "lecturer" | "assistant" | "ai" | null;
+  answer_disclaimer: string | null;
   created_at: string;
   age_seconds: number;
 }
@@ -450,6 +457,39 @@ export interface StudentState {
     options: string[];
     slide_index: number;
   } | null;
+  current_questions: {
+    id: number;
+    type: QuestionType;
+    prompt: string;
+    options: string[];
+    slide_index: number;
+  }[];
+}
+
+export interface SupportQuestion {
+  id: number;
+  slide_index: number;
+  text: string;
+  confusion_score: number;
+  confusion_threshold: number;
+  escalated: boolean;
+  status: "pending" | "answered";
+  answer_text: string | null;
+  answered_by: "lecturer" | "assistant" | "ai" | null;
+  answer_disclaimer: string | null;
+  created_at?: string;
+  answered_at?: string | null;
+  at?: string;
+}
+
+export interface AiSupportResponse {
+  summary: string;
+  answer: string;
+  confusion_score: number;
+  confusion_threshold: number;
+  escalated: boolean;
+  support_question: SupportQuestion | null;
+  disclaimer: string;
 }
 
 /* ------------------------------------------------------------------- endpoint */
@@ -520,7 +560,7 @@ export const api = {
 
   /* --- Bục Giảng --- */
   changeSlide: (sessionId: number, slide_index: number) =>
-    request<{ slide_index: number }>(`/teaching/sessions/${sessionId}/slide`, {
+    request<{ slide_index: number; current_question_id: number | null }>(`/teaching/sessions/${sessionId}/slide`, {
       method: "POST",
       body: body({ slide_index }),
     }),
@@ -536,6 +576,15 @@ export const api = {
     }),
   teachingDashboard: (sessionId: number) =>
     request<TeachingDashboard>(`/teaching/sessions/${sessionId}/dashboard`),
+  answerSupportQuestion: (
+    sessionId: number,
+    questionId: number,
+    b: { text: string; answered_by?: "lecturer" | "assistant" },
+  ) =>
+    request<SupportQuestion>(`/teaching/sessions/${sessionId}/support-questions/${questionId}/answer`, {
+      method: "POST",
+      body: body(b),
+    }),
   advice: (sessionId: number, b: { slide_index?: number; lecturer_request?: string }) =>
     request<Advice>(`/teaching/sessions/${sessionId}/advice`, { method: "POST", body: body(b) }),
   adviceFeedback: (sessionId: number, adviceId: number, feedback: string, note = "") =>
@@ -570,8 +619,11 @@ export const api = {
     request<JoinResult>("/join", { method: "POST", body: body(b), auth: false }),
   studentSlides: (sessionId: number) =>
     request<SlideOut[]>(`/sessions/${sessionId}/slides`, { auth: false }),
-  studentState: (sessionId: number) =>
-    request<StudentState>(`/sessions/${sessionId}/state`, { auth: false }),
+  studentState: (sessionId: number, token?: string) =>
+    request<StudentState>(
+      `/sessions/${sessionId}/state${token ? `?token=${encodeURIComponent(token)}` : ""}`,
+      { auth: false },
+    ),
   submitAnswer: (
     sessionId: number,
     b: {
@@ -598,6 +650,29 @@ export const api = {
     ),
   sendHint: (sessionId: number, hintId: number, b: { token: string; question: string }) =>
     request<unknown>(`/sessions/${sessionId}/hints/${hintId}/send`, {
+      method: "POST",
+      body: body(b),
+      auth: false,
+    }),
+  askQuestion: (
+    sessionId: number,
+    b: { token: string; slide_index: number; text: string },
+  ) =>
+    request<SupportQuestion>(`/sessions/${sessionId}/questions`, {
+      method: "POST",
+      body: body(b),
+      auth: false,
+    }),
+  myQuestions: (sessionId: number, token: string) =>
+    request<SupportQuestion[]>(
+      `/sessions/${sessionId}/questions?token=${encodeURIComponent(token)}`,
+      { auth: false },
+    ),
+  aiSupport: (
+    sessionId: number,
+    b: { token: string; slide_index: number; message?: string },
+  ) =>
+    request<AiSupportResponse>(`/sessions/${sessionId}/ai-support`, {
       method: "POST",
       body: body(b),
       auth: false,
