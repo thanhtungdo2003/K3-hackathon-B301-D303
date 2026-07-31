@@ -260,6 +260,7 @@ export interface Overview {
   skip_rate: number;
   questions_asked: number;
   hints_requested: number;
+  latest_session_summary: SessionUnderstandingSummary | null;
   advisor: {
     total: number;
     alerts: number;
@@ -267,6 +268,39 @@ export interface Overview {
     dismiss_rate: number;
     useful_rate: number;
   };
+}
+
+export interface UnclearTopic {
+  slide_index: number;
+  title: string;
+  status: "red" | "yellow";
+  understood: number;
+  temporary: number;
+  not_understood: number;
+  classified_students: number;
+  temporary_rate: number;
+  not_understood_rate: number;
+  reasons: string[];
+}
+
+export interface SessionUnderstandingSummary {
+  session: {
+    id: number;
+    title: string;
+    course_title: string;
+    started_at: string;
+    ended_at: string | null;
+  };
+  total_students: number;
+  classified_students: number;
+  coverage_rate: number;
+  understood: CountRate;
+  temporary: CountRate;
+  not_understood: CountRate;
+  unclassified_students: number;
+  unclear_topics: UnclearTopic[];
+  rule_version: string;
+  privacy_note: string;
 }
 
 export interface SessionSummary {
@@ -402,6 +436,8 @@ export interface AssistantSupportItem {
   answer_text: string | null;
   answered_by: "lecturer" | "assistant" | "ai" | null;
   answer_disclaimer: string | null;
+  assigned_to_assistant: boolean;
+  assigned_at: string | null;
   created_at: string;
   age_seconds: number;
 }
@@ -418,6 +454,7 @@ export interface SlideTrackingAggregate {
   unknown_students: number;
   tracking_coverage: number;
   auto_synced_total: number;
+  reviewing_previous_students: number;
 }
 
 export interface TeachingAssistantDashboard {
@@ -435,6 +472,8 @@ export interface TeachingAssistantDashboard {
   diagnostic: AssistantDiagnostic;
   support_queue: AssistantSupportItem[];
   slide_sync: SlideTrackingAggregate;
+  current_session_summary: SessionUnderstandingSummary;
+  previous_session_summary: SessionUnderstandingSummary | null;
   privacy: {
     identity_fields_omitted: boolean;
     free_text_may_contain_self_identification: boolean;
@@ -487,6 +526,8 @@ export interface SupportQuestion {
   answer_text: string | null;
   answered_by: "lecturer" | "assistant" | "ai" | null;
   answer_disclaimer: string | null;
+  assigned_to_assistant?: boolean;
+  assigned_at?: string | null;
   created_at?: string;
   answered_at?: string | null;
   at?: string;
@@ -642,6 +683,15 @@ export const api = {
         method: "POST",
         body: body(b),
       },
+    ),
+  assignSupportQuestionToAssistant: (sessionId: number, questionId: number) =>
+    request<{
+      question_id: number;
+      assigned_to_assistant: boolean;
+      assigned_at: string;
+    }>(
+      `/teaching/sessions/${sessionId}/support-questions/${questionId}/assign-assistant`,
+      { method: "POST" },
     ),
   advice: (
     sessionId: number,

@@ -9,6 +9,7 @@ import {
   ClockCircleOutlined,
   DisconnectOutlined,
   EyeOutlined,
+  HistoryOutlined,
   LinkOutlined,
   MessageOutlined,
   MoonOutlined,
@@ -58,6 +59,7 @@ import {
   type AssistantConcept,
   type AssistantSupportItem,
   type CountRate,
+  type SessionUnderstandingSummary,
   type TeachingAssistantDashboard,
 } from "@/lib/api";
 import { getToken, useAuth } from "@/lib/auth";
@@ -380,6 +382,94 @@ function MetricTile({
   );
 }
 
+function UnderstandingSummaryCard({
+  summary,
+  title,
+}: {
+  summary: SessionUnderstandingSummary;
+  title: string;
+}) {
+  const groups = [
+    { label: "Hiểu bài", value: summary.understood, color: "#18A66A" },
+    { label: "Tạm hiểu", value: summary.temporary, color: "#E69A17" },
+    { label: "Chưa hiểu", value: summary.not_understood, color: "#E5484D" },
+  ];
+  return (
+    <Card
+      className="h-full"
+      title={
+        <Space>
+          <HistoryOutlined />
+          {title}
+        </Space>
+      }
+      extra={<Tag>độ phủ {percent(summary.coverage_rate)}%</Tag>}
+    >
+      <div className="mb-3">
+        <Typography.Text strong>{summary.session.title}</Typography.Text>
+        <div className="text-xs font-semibold" style={{ color: "var(--ai-muted)" }}>
+          {summary.session.course_title} · {summary.classified_students}/
+          {summary.total_students} học viên đủ tín hiệu
+        </div>
+      </div>
+      <Row gutter={[10, 10]}>
+        {groups.map((group) => (
+          <Col xs={24} sm={8} key={group.label}>
+            <div
+              className="rounded-2xl border p-3"
+              style={{
+                borderColor: "var(--ai-line)",
+                borderTop: `3px solid ${group.color}`,
+                background: "var(--ai-bg)",
+              }}
+            >
+              <div className="text-xs font-bold" style={{ color: "var(--ai-muted)" }}>
+                {group.label}
+              </div>
+              <div className="text-2xl font-extrabold" style={{ color: group.color }}>
+                {percent(group.value.rate)}%
+              </div>
+              <div className="text-xs font-semibold">{group.value.count} học viên</div>
+            </div>
+          </Col>
+        ))}
+      </Row>
+      <Divider titlePlacement="start" plain>
+        Nội dung học viên chưa hiểu/cần xem lại
+      </Divider>
+      {summary.unclear_topics.length ? (
+        <ul className="m-0 list-none space-y-2 p-0">
+          {summary.unclear_topics.map((topic) => (
+            <li
+              key={topic.slide_index}
+              className="rounded-xl border px-3 py-2"
+              style={{ borderColor: "var(--ai-line)", background: "var(--ai-bg)" }}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <Tag color={topic.status === "red" ? "red" : "gold"}>
+                  slide {topic.slide_index + 1}
+                </Tag>
+                <Typography.Text strong>{topic.title}</Typography.Text>
+              </div>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {topic.reasons.join(" · ")}
+              </Typography.Text>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description="Chưa ghi nhận nội dung cần xem lại"
+        />
+      )}
+      <Typography.Text type="secondary" style={{ display: "block", marginTop: 10, fontSize: 11 }}>
+        {summary.privacy_note}
+      </Typography.Text>
+    </Card>
+  );
+}
+
 function SupportItem({
   item,
   elapsedSeconds,
@@ -424,6 +514,9 @@ function SupportItem({
               <Tag color={item.escalated ? "red" : "default"}>
                 bối rối {Math.round(item.confusion_score * 100)}%
               </Tag>
+            ) : null}
+            {item.assigned_to_assistant ? (
+              <Tag color="purple">Giảng viên chuyển</Tag>
             ) : null}
           </div>
           <Typography.Paragraph style={{ margin: "6px 0 0", overflowWrap: "anywhere" }}>
@@ -694,6 +787,7 @@ export default function TeachingAssistantPage() {
     socket.on("question_closed", scheduleRefresh);
     socket.on("support_question", scheduleRefresh);
     socket.on("support_answered", scheduleRefresh);
+    socket.on("support_assigned", scheduleRefresh);
     socket.on("session_ended", scheduleRefresh);
 
     return () => {
@@ -715,6 +809,7 @@ export default function TeachingAssistantPage() {
       socket.off("question_closed", scheduleRefresh);
       socket.off("support_question", scheduleRefresh);
       socket.off("support_answered", scheduleRefresh);
+      socket.off("support_assigned", scheduleRefresh);
       socket.off("session_ended", scheduleRefresh);
       handle.dispose();
     };
@@ -1001,6 +1096,34 @@ export default function TeachingAssistantPage() {
                 </section>
 
                 <Row gutter={[16, 16]} align="stretch">
+                  <Col xs={24} xl={12}>
+                    <section className="h-full">
+                      <UnderstandingSummaryCard
+                        summary={dashboard.current_session_summary}
+                        title="Tổng quan buổi học hiện tại"
+                      />
+                    </section>
+                  </Col>
+                  <Col xs={24} xl={12}>
+                    <section className="h-full">
+                      {dashboard.previous_session_summary ? (
+                        <UnderstandingSummaryCard
+                          summary={dashboard.previous_session_summary}
+                          title="Tổng quan buổi học gần nhất"
+                        />
+                      ) : (
+                        <Card className="h-full" title="Tổng quan buổi học gần nhất">
+                          <Empty
+                            image={Empty.PRESENTED_IMAGE_SIMPLE}
+                            description="Chưa có buổi học trước đã kết thúc"
+                          />
+                        </Card>
+                      )}
+                    </section>
+                  </Col>
+                </Row>
+
+                <Row gutter={[16, 16]} align="stretch">
                   <Col xs={24} xl={15}>
                     <section id="concepts" className="h-full scroll-mt-24">
                       <Card
@@ -1264,6 +1387,16 @@ export default function TeachingAssistantPage() {
                             style={{ marginTop: 14 }}
                           />
                         )}
+
+                        {dashboard.slide_sync.reviewing_previous_students > 0 ? (
+                          <Alert
+                            type="warning"
+                            showIcon
+                            title={`${dashboard.slide_sync.reviewing_previous_students} học viên đang xem lại slide trước`}
+                            description="Những học viên này được cắm cờ tổng hợp ở nhóm vàng “tạm hiểu”; không hiển thị danh tính."
+                            style={{ marginTop: 10 }}
+                          />
+                        ) : null}
 
                         <Divider style={{ margin: "14px 0" }} />
                         <Space size={6} wrap>

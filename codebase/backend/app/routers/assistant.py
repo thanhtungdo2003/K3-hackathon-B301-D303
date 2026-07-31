@@ -22,12 +22,14 @@ from ..models import (
     User,
 )
 from ..modules import analytics, state_engine
+from ..modules.session_understanding import build_session_summary
 from ..schemas import AssistantDashboardOut, SlideTrackingAggregateOut
 from ..security import current_user
 
 router = APIRouter(prefix="/teaching-assistant/sessions", tags=["teaching-assistant"])
 settings = get_settings()
 PULSE_WINDOW_SECONDS = 5 * 60
+SUPPORT_ASSIGNED_EVENT = "support_assigned_assistant"
 
 
 def _owned_session(db: DbSession, session_id: int, user: User) -> Session:
@@ -73,8 +75,13 @@ def _pulse(
         event.participant_id
         for event in events
         if event.participant_id in online_ids
-        and event.slide_index == current_slide_index
-        and event.type in ("raise_hand", "ask_question", "return_slide")
+        and (
+            (
+                event.slide_index == current_slide_index
+                and event.type in ("raise_hand", "ask_question")
+            )
+            or event.type == "return_slide"
+        )
         and _recent(event.created_at, now)
     }
     requested_hint = {
@@ -192,6 +199,13 @@ def _support_queue(
 ) -> list[dict]:
     rows: list[dict] = []
     support_by_id = {question.id: question for question in (support_questions or [])}
+    assignments: dict[int, LearningEvent] = {}
+    for event in events:
+        if event.type != SUPPORT_ASSIGNED_EVENT:
+            continue
+        question_id = event.payload.get("support_question_id")
+        if isinstance(question_id, int):
+            assignments[question_id] = event
     for event in events:
         if event.type not in ("raise_hand", "ask_question"):
             continue
@@ -202,6 +216,7 @@ def _support_queue(
         )
         question_id = event.payload.get("support_question_id")
         support = support_by_id.get(question_id) if isinstance(question_id, int) else None
+        assignment = assignments.get(support.id) if support else None
         rows.append(
             {
                 "key": f"event-{event.id}",
@@ -215,13 +230,22 @@ def _support_queue(
                 "answer_text": support.answer_text if support else None,
                 "answered_by": support.answered_by if support else None,
                 "answer_disclaimer": support.answer_disclaimer if support else None,
+                "assigned_to_assistant": assignment is not None,
+                "assigned_at": _aware(assignment.created_at) if assignment else None,
                 "created_at": _aware(event.created_at),
                 "age_seconds": max(
                     0, int((now - _aware(event.created_at)).total_seconds())
                 ),
             }
         )
-    return sorted(rows, key=lambda row: row["created_at"])[:30]
+    return sorted(
+        rows,
+        key=lambda row: (
+            not row["assigned_to_assistant"],
+            row["status"] == "answered",
+            row["created_at"],
+        ),
+    )[:30]
 
 
 def _tracking_aggregate(
@@ -239,6 +263,17 @@ def _tracking_aggregate(
     connected = min(runtime["connected_students"], tracked)
     aligned = min(runtime["aligned_students"], tracked)
     out_of_sync = min(runtime["out_of_sync_students"], tracked - aligned)
+    now = datetime.now(timezone.utc)
+    online_ids = {participant.id for participant in participants if participant.online}
+    reviewing_previous_students = len(
+        {
+            event.participant_id
+            for event in events
+            if event.type == "return_slide"
+            and event.participant_id in online_ids
+            and _recent(event.created_at, now)
+        }
+    )
     return {
         "session_id": session.id,
         "lecturer_slide_index": session.current_slide_index,
@@ -258,6 +293,7 @@ def _tracking_aggregate(
                 and event.payload.get("delivery_status") == "emitted"
             ]
         ),
+        "reviewing_previous_students": reviewing_previous_students,
     }
 
 
@@ -332,6 +368,15 @@ def assistant_dashboard(
         ],
         key=lambda row: (-row["severity"], row["slide_index"]),
     )[:4]
+    previous_session = db.scalar(
+        select(Session)
+        .where(
+            Session.room_id == session.room_id,
+            Session.id != session.id,
+            Session.ended_at.is_not(None),
+        )
+        .order_by(Session.ended_at.desc())
+    )
 
     return {
         "session": {
@@ -377,6 +422,12 @@ def assistant_dashboard(
         },
         "support_queue": _support_queue(events, now, support_questions),
         "slide_sync": _tracking_aggregate(session, participants, events),
+        "current_session_summary": build_session_summary(db, session),
+        "previous_session_summary": (
+            build_session_summary(db, previous_session)
+            if previous_session is not None
+            else None
+        ),
         "privacy": {
             "identity_fields_omitted": True,
             "free_text_may_contain_self_identification": True,

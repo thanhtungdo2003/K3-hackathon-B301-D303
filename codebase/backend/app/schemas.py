@@ -258,6 +258,12 @@ class SupportAnswerRequest(BaseModel):
     answered_by: Literal["lecturer", "assistant"] = "lecturer"
 
 
+class SupportAssignmentOut(BaseModel):
+    question_id: int
+    assigned_to_assistant: bool
+    assigned_at: datetime
+
+
 class SupportQuestionOut(BaseModel):
     id: int
     slide_index: int
@@ -294,6 +300,41 @@ class AiSupportResponse(BaseModel):
 class CountRateOut(BaseModel):
     count: int
     rate: float
+
+
+class SessionSummaryInfoOut(BaseModel):
+    id: int
+    title: str
+    course_title: str
+    started_at: datetime
+    ended_at: datetime | None
+
+
+class UnclearTopicOut(BaseModel):
+    slide_index: int
+    title: str
+    status: Literal["red", "yellow"]
+    understood: int
+    temporary: int
+    not_understood: int
+    classified_students: int
+    temporary_rate: float
+    not_understood_rate: float
+    reasons: list[str]
+
+
+class SessionUnderstandingSummaryOut(BaseModel):
+    session: SessionSummaryInfoOut
+    total_students: int
+    classified_students: int
+    coverage_rate: float
+    understood: CountRateOut
+    temporary: CountRateOut
+    not_understood: CountRateOut
+    unclassified_students: int
+    unclear_topics: list[UnclearTopicOut]
+    rule_version: str
+    privacy_note: str
 
 
 class AssistantPulseOut(BaseModel):
@@ -366,6 +407,8 @@ class AssistantSupportItemOut(BaseModel):
     answer_text: str | None = None
     answered_by: Literal["lecturer", "assistant", "ai"] | None = None
     answer_disclaimer: str | None = None
+    assigned_to_assistant: bool = False
+    assigned_at: datetime | None = None
     created_at: datetime
     age_seconds: int
 
@@ -382,6 +425,7 @@ class SlideTrackingAggregateOut(BaseModel):
     unknown_students: int
     tracking_coverage: float
     auto_synced_total: int
+    reviewing_previous_students: int
 
 
 class AssistantSessionOut(BaseModel):
@@ -407,6 +451,8 @@ class AssistantDashboardOut(BaseModel):
     diagnostic: AssistantDiagnosticOut
     support_queue: list[AssistantSupportItemOut]
     slide_sync: SlideTrackingAggregateOut
+    current_session_summary: SessionUnderstandingSummaryOut
+    previous_session_summary: SessionUnderstandingSummaryOut | None
     privacy: AssistantPrivacyOut
 
 
