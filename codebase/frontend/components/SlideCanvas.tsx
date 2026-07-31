@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useTheme } from "@/app/providers";
+import { API_BASE } from "@/lib/api";
 
 export type SlideBlock =
   | { type: "kicker"; text: string }
@@ -225,11 +226,15 @@ interface SlideLike {
   index: number;
   title: string;
   blocks: unknown[];
+  page_image_url?: string | null;
 }
 
 /**
  * Truyền `slide` (dạng trả về từ API) là đủ; `blocks` + `pageLabel` chỉ dùng khi
  * cần vẽ nội dung tự tạo. Chủ đề sáng/tối lấy theo theme hiện tại nếu không chỉ định.
+ *
+ * Slide nhập từ PDF có sẵn ảnh trang gốc thì hiện thẳng ảnh đó, không vẽ lại bằng
+ * canvas — giữ nguyên bố cục, hình và font của file gốc.
  */
 export default function SlideCanvas({
   slide,
@@ -255,9 +260,13 @@ export default function SlideCanvas({
     (slide
       ? `Slide ${slide.index + 1}${total ? ` / ${total}` : ""}${slide.title ? ` — ${slide.title}` : ""}`
       : "");
+  // Chỉ dùng ảnh khi hiển thị đúng slide đó; `blocks` truyền tay là nội dung tự
+  // tạo nên vẫn phải vẽ canvas.
+  const pageImage = blocks ? null : slide?.page_image_url;
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
+    if (pageImage) return;
     const canvas = ref.current;
     if (!canvas) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -268,7 +277,26 @@ export default function SlideCanvas({
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.textBaseline = "alphabetic";
     draw(ctx, drawnBlocks, isDark ? DARK : LIGHT, label);
-  }, [drawnBlocks, label, isDark]);
+  }, [drawnBlocks, label, isDark, pageImage]);
+
+  if (pageImage) {
+    const src = pageImage.startsWith("http") ? pageImage : `${API_BASE}${pageImage}`;
+    // Nền trắng cố định: trang PDF gốc gần như luôn nền sáng, đổi theo theme sẽ
+    // lộ viền lệch màu khi trang không phải 16:9.
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt={label}
+        className={
+          fill
+            ? "block h-full w-full bg-white object-contain"
+            : "block w-full rounded-blk border-2 border-b-4 border-line bg-white object-contain"
+        }
+        style={{ aspectRatio: `${W} / ${H}` }}
+      />
+    );
+  }
 
   if (fill) {
     return (
