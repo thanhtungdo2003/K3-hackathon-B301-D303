@@ -145,7 +145,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.no_ai:
-        os.environ["AGORA_AI_ENABLED"] = "0"
+        os.environ["VINLEARN_AI_ENABLED"] = "0"
 
     from app.config import get_settings
     from app.modules import advisor, state_engine

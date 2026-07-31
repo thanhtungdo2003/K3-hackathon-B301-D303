@@ -378,7 +378,7 @@ def advise_teacher(metrics: dict, state: dict, lecturer_request: str | None = No
 
 # ── 4. Trợ lý dashboard (tool calling) ──────────────────────────────────────
 
-ASSISTANT_SYSTEM = """Bạn là trợ lý dựng lớp học trong hệ thống AGORA, làm việc cùng một giảng viên.
+ASSISTANT_SYSTEM = """Bạn là trợ lý dựng lớp học trong hệ thống VINLEARN, làm việc cùng một giảng viên.
 
 BẠN LÀM ĐƯỢC GÌ
 - Tạo và sửa khoá học, xem danh sách slide, đặt checkpoint, soạn nháp câu hỏi, tạo phòng học, bắt đầu buổi học, đọc số liệu tổng quan và chất lượng từng slide.

@@ -1,4 +1,4 @@
-# codebase/ — hệ thống AGORA
+# codebase/ — hệ thống VINLEARN
 
 Không còn dữ liệu mô phỏng: mọi số liệu trên dashboard đều sinh ra từ buổi dạy thật.
 
@@ -139,7 +139,7 @@ slide mới nhất trong DB, ghi audit `auto_slide_sync`, rồi chỉ gửi tớ
 Mốc lệch không bị đặt lại khi học viên chuyển sang một slide sai khác hoặc giảng viên
 đổi slide nhưng hai bên vẫn lệch. Timer bị huỷ khi hai bên trùng slide, học viên bật
 follow, socket cuối cùng ngắt kết nối hoặc buổi học kết thúc. Thời gian mặc định là
-300 giây và có thể đổi bằng `AGORA_SLIDE_SYNC_TIMEOUT_SECONDS`. Mỗi tab/socket được
+300 giây và có thể đổi bằng `VINLEARN_SLIDE_SYNC_TIMEOUT_SECONDS`. Mỗi tab/socket được
 theo dõi riêng; nếu một tab vẫn lệch thì tab khác đang đúng không che mất timer.
 Frontend dùng `sync_id` để bỏ qua event lặp khi Socket.IO phải retry sau lỗi mạng. Khi
 nhận lệnh, màn hình học viên chuyển về slide mới nhất, bật lại chế độ theo giảng viên và

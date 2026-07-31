@@ -76,6 +76,8 @@ class SlideOut(BaseModel):
     source: str
     checkpoint_id: int | None
     question_count: int
+    # Đường dẫn ảnh trang PDF gốc; None thì frontend vẽ lại từ `blocks`.
+    page_image_url: str | None = None
 
 
 class SlideCreate(BaseModel):

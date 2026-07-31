@@ -1,20 +1,34 @@
-"""Đọc file PPTX thật thành các block để frontend vẽ lên HTML canvas.
+"""Đọc file PPTX/PDF thật thành các block để frontend vẽ lên HTML canvas.
 
-Không render ảnh slide — lấy phần chữ có cấu trúc (tiêu đề, gạch đầu dòng,
+PPTX: không render ảnh slide — lấy phần chữ có cấu trúc (tiêu đề, gạch đầu dòng,
 bảng, ghi chú của người trình bày) rồi vẽ lại bằng canvas. Nhờ vậy nội dung
 slide vẫn là văn bản: đọc được, tìm được, và Advisor biết được tiêu đề slide.
+
+PDF: render thêm ảnh từng trang đúng như bản gốc để hiển thị, nhưng **vẫn** trích
+văn bản thành block. Ảnh dùng để xem, block dùng làm ngữ cảnh cho Advisor.
 """
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
 from typing import Any
 
-from pypdf import PdfReader
+import fitz  # pymupdf — đọc chữ và render ảnh cho PDF
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 
 MAX_BULLETS = 8
 MAX_CHARS = 220
+
+# Bề ngang ảnh trang PDF. 1600px đủ nét cho máy chiếu mà file vẫn nhẹ.
+PAGE_IMAGE_WIDTH = 1600
+
+# Nơi ảnh trang PDF được phục vụ (khớp với mount trong main.py).
+PAGE_URL_PREFIX = "/slide-pages"
+
+
+def page_image_url(name: str | None) -> str | None:
+    return f"{PAGE_URL_PREFIX}/{name}" if name else None
 
 
 def _clean(text: str) -> str:
@@ -125,37 +139,70 @@ def parse_pptx(path: Path) -> list[dict]:
     return result
 
 
-def parse_pdf(path: Path) -> list[dict]:
-    reader = PdfReader(str(path))
+def _render_page(page: Any, out_dir: Path, name: str) -> str:
+    """Render một trang thành PNG trong `out_dir`. Trả về tên file."""
+    # Phóng theo bề ngang trang để mọi trang ra cùng độ nét, không phụ thuộc khổ
+    # giấy gốc (A4 dọc, 16:9 ngang…).
+    zoom = PAGE_IMAGE_WIDTH / max(page.rect.width, 1)
+    pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
+    pixmap.save(str(out_dir / name))
+    return name
+
+
+def parse_pdf(path: Path, page_image_dir: Path | None = None) -> list[dict]:
+    """Trả về danh sách slide: {index, title, blocks, notes, page_image}.
+
+    Dùng PyMuPDF cho cả chữ lẫn ảnh. Không dùng pypdf vì pypdf đòi thêm gói
+    `cryptography` mới đọc nổi PDF đã mã hoá (rất nhiều PDF xuất ra có đặt hạn
+    chế quyền), còn PyMuPDF mở thẳng được.
+
+    `page_image_dir` có giá trị thì render thêm ảnh từng trang vào đó; render
+    hỏng thì bỏ ảnh và vẫn trả về phần văn bản, không làm hỏng cả lần tải lên.
+    """
     result: list[dict] = []
+    stem = uuid.uuid4().hex[:10]
+    if page_image_dir is not None:
+        page_image_dir.mkdir(parents=True, exist_ok=True)
 
-    for i, page in enumerate(reader.pages):
-        text = page.extract_text() or ""
-        lines = [line.strip() for line in text.splitlines() if line.strip()]
-        title = lines[0][:200] if lines else f"Trang {i + 1}"
-        body = lines[1:] if lines else []
-        blocks: list[dict] = []
+    with fitz.open(str(path)) as doc:
+        if doc.needs_pass:
+            raise ValueError("PDF này có mật khẩu mở file.")
+        pages = list(doc)
+        for i, page in enumerate(pages):
+            image = ""
+            if page_image_dir is not None:
+                try:
+                    image = _render_page(page, page_image_dir, f"{stem}-{i + 1:03d}.png")
+                except Exception:  # noqa: BLE001 — ảnh là phần tăng thêm, không được chặn import
+                    image = ""
 
-        if title:
-            blocks.append({"type": "title", "text": title})
+            text = page.get_text() or ""
+            lines = [line.strip() for line in text.splitlines() if line.strip()]
+            title = lines[0][:200] if lines else f"Trang {i + 1}"
+            body = lines[1:] if lines else []
+            blocks: list[dict] = []
 
-        if body:
-            if len(body) == 1 and len(body[0]) <= 140:
-                blocks.append({"type": "lead", "text": body[0]})
+            if title:
+                blocks.append({"type": "title", "text": title})
+
+            if body:
+                if len(body) == 1 and len(body[0]) <= 140:
+                    blocks.append({"type": "lead", "text": body[0]})
+                else:
+                    items = [line[:MAX_CHARS] for line in body][:MAX_BULLETS]
+                    blocks.append({"type": "bullets", "items": items})
             else:
-                items = [line[:MAX_CHARS] for line in body][:MAX_BULLETS]
-                blocks.append({"type": "bullets", "items": items})
-        else:
-            blocks.append({"type": "note", "text": "Trang PDF này không có văn bản có thể trích xuất."})
+                blocks.append({"type": "note", "text": "Trang PDF này không có văn bản có thể trích xuất."})
 
-        result.append(
-            {
-                "index": i,
-                "title": title,
-                "blocks": blocks,
-                "notes": "",
-            }
-        )
+            result.append(
+                {
+                    "index": i,
+                    "title": title,
+                    "blocks": blocks,
+                    "notes": "",
+                    "page_image": image,
+                }
+            )
 
     return result
 

@@ -64,8 +64,11 @@ class Slide(Base):
     index: Mapped[int] = mapped_column(Integer)
     title: Mapped[str] = mapped_column(String(300), default="")
     blocks: Mapped[list] = mapped_column(JSON, default=list)
-    source: Mapped[str] = mapped_column(String(16), default="manual")  # manual | pptx
+    source: Mapped[str] = mapped_column(String(16), default="manual")  # manual | pptx | pdf
     notes: Mapped[str] = mapped_column(Text, default="")  # ghi chú của người trình bày, lấy từ PPTX
+    # Tên file ảnh trang PDF đã render (chỉ slide source="pdf" mới có). Rỗng thì
+    # frontend vẽ lại từ `blocks` như cũ.
+    page_image: Mapped[str] = mapped_column(String(255), default="")
 
     course: Mapped[Course] = relationship(back_populates="slides")
     checkpoint: Mapped["Checkpoint | None"] = relationship(

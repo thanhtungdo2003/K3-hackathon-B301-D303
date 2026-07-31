@@ -22,7 +22,7 @@ from ..models import (
     utcnow,
 )
 from ..modules import assessment, question_support, student_coach
-from ..modules.slide_import import slide_plain_text
+from ..modules.slide_import import page_image_url, slide_plain_text
 from ..schemas import (
     AnswerRequest,
     AnswerResponse,
@@ -192,6 +192,7 @@ def list_slides(session_id: int, db: DbSession = Depends(get_db)) -> list[SlideO
             source=s.source,
             checkpoint_id=s.checkpoint.id if s.checkpoint else None,
             question_count=len(s.checkpoint.questions) if s.checkpoint else 0,
+            page_image_url=page_image_url(s.page_image),
         )
         for s in _slides_of(db, session)
     ]
