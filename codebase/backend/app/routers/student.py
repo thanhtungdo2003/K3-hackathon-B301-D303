@@ -311,10 +311,12 @@ async def send_hint_question(
 async def leave(session_id: int, payload: HintRequest, db: DbSession = Depends(get_db)) -> dict:
     participant = get_participant(db, payload.token, session_id)
     participant.online = False
+    participant_id = participant.id
     db.add(
         LearningEvent(session_id=session_id, participant_id=participant.id, type="leave")
     )
     db.commit()
+    await realtime.stop_student_tracking(participant_id)
     online = len([p for p in participant.session.participants if p.online])
     await realtime.broadcast(session_id, "roster_changed", {"online": online})
     return {"ok": True}

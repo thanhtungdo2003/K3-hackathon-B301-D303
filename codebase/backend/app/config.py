@@ -29,6 +29,9 @@ class Settings:
         self.database_url: str = os.getenv("AGORA_DATABASE_URL", f"sqlite:///{BASE_DIR / 'agora.db'}")
         self.upload_dir: Path = _path(os.getenv("AGORA_UPLOAD_DIR", "./uploads"))
         self.trace_dir: Path = BASE_DIR / "traces"
+        self.slide_sync_timeout_seconds: int = max(
+            1, int(os.getenv("AGORA_SLIDE_SYNC_TIMEOUT_SECONDS", "300"))
+        )
 
         # Ngưỡng dữ liệu
         self.min_responses: int = int(os.getenv("AGORA_MIN_RESPONSES", "5"))

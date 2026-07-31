@@ -244,6 +244,120 @@ class HintPickRequest(BaseModel):
     question: str = Field(min_length=1, max_length=300)
 
 
+# ── Dữ liệu cho giao diện Trợ giảng (chỉ aggregate/ẩn danh) ─────────────────
+
+class CountRateOut(BaseModel):
+    count: int
+    rate: float
+
+
+class AssistantPulseOut(BaseModel):
+    total_students: int
+    classified_students: int
+    on_track: CountRateOut
+    needs_follow_up: CountRateOut
+    struggling: CountRateOut
+    unclassified: CountRateOut
+    rule_version: str
+    rules: dict[str, str]
+
+
+class ConceptEvidenceOut(BaseModel):
+    online_students: int
+    responded: int
+    graded_answers: int
+    wrong_rate: float
+    skip_rate: float
+    low_confidence_rate: float
+    return_visits: int
+    questions_asked: int
+
+
+class AssistantConceptOut(BaseModel):
+    slide_index: int
+    title: str
+    source: Literal["slide_title"]
+    understanding: float | None
+    status: Literal["green", "yellow", "red", "insufficient_data"]
+    state: str
+    state_label: str
+    severity: int
+    trusted: bool
+    sample_note: str
+    evidence: ConceptEvidenceOut
+
+
+class AssistantAdviceOut(BaseModel):
+    id: int
+    slide_index: int
+    headline: str
+    action: str
+    evidence: list[Any]
+    confidence: str
+    source: str
+    created_at: datetime
+
+
+class AssistantDiagnosticOut(BaseModel):
+    slide_index: int
+    state: str
+    state_label: str
+    severity: int
+    reasons: list[str]
+    trusted: bool
+    sample_note: str
+    latest_advice: AssistantAdviceOut | None
+
+
+class AssistantSupportItemOut(BaseModel):
+    key: str
+    type: Literal["raise_hand", "ask_question"]
+    slide_index: int
+    text: str
+    created_at: datetime
+    age_seconds: int
+
+
+class SlideTrackingAggregateOut(BaseModel):
+    session_id: int
+    lecturer_slide_index: int
+    timeout_seconds: int
+    online_students: int
+    tracked_students: int
+    connected_students: int
+    aligned_students: int
+    out_of_sync_students: int
+    unknown_students: int
+    tracking_coverage: float
+    auto_synced_total: int
+
+
+class AssistantSessionOut(BaseModel):
+    id: int
+    title: str
+    course_title: str
+    current_slide_index: int
+    ended: bool
+
+
+class AssistantPrivacyOut(BaseModel):
+    identity_fields_omitted: bool
+    free_text_may_contain_self_identification: bool
+    note: str
+
+
+class AssistantDashboardOut(BaseModel):
+    session: AssistantSessionOut
+    generated_at: datetime
+    pulse: AssistantPulseOut
+    concepts: list[AssistantConceptOut]
+    hot_concepts: list[AssistantConceptOut]
+    diagnostic: AssistantDiagnosticOut
+    support_queue: list[AssistantSupportItemOut]
+    slide_sync: SlideTrackingAggregateOut
+    privacy: AssistantPrivacyOut
+
+
 # ── Điều khiển buổi học ─────────────────────────────────────────────────────
 
 class SlideChangeRequest(BaseModel):
