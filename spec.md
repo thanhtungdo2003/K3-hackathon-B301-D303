@@ -3,7 +3,7 @@
 Hướng: **[x] A — VLearn**  [ ] B — Trợ lý Học viên  [ ] C — Làn mở
 Loại: [ ] Tối ưu tính năng có sẵn  **[x] Tính năng mới**
 
-Sản phẩm: **AGORA** — lớp học realtime, học viên vào bằng mã lớp, slide vẽ trên HTML canvas.
+Sản phẩm: **VINLEARN** — lớp học realtime, học viên vào bằng mã lớp, slide vẽ trên HTML canvas.
 Lát cắt được build và chấm trong spec này là **Teaching Advisor**.
 
 > ⚠️ **Trạng thái tài liệu.** Các mục cần **người thật** (§1 evidence, §2 con số impact, §8 willing users)
@@ -93,10 +93,10 @@ Chọn **#1** vì ba lý do định lượng được:
 
 | Sản phẩm | Flow của họ | Đáng học | Đáng né | Mình khác gì |
 |---|---|---|---|---|
-| **Kahoot / Quizizz** | Giảng viên bật câu hỏi → học viên trả lời → hiện biểu đồ phân bố đáp án | Học viên **không cần tài khoản**, chỉ cần mã phòng — AGORA copy đúng điểm này | Chỉ ra **biểu đồ số**, giảng viên phải tự diễn giải trong lúc đang giảng | AGORA chốt sẵn **một trạng thái + một hành động**, không bắt đọc biểu đồ |
-| **NotebookLM** | Trả lời kèm trích dẫn ngay cạnh mỗi câu | **Luôn hiển thị căn cứ cạnh câu trả lời** — AGORA gắn "evidence chip" là các con số thật cạnh mỗi gợi ý | Câu trả lời dài, đọc lúc rảnh thì được, lúc đang dạy thì không | Popup AGORA giới hạn cứng 60 ký tự tiêu đề + 140 ký tự hành động |
-| **Duolingo** | Bài học chia nhỏ, nút to, phản hồi tức thì, ít chữ | **Ngôn ngữ khối + icon thay chữ** — giảm tải nhận thức; AGORA dùng đúng hệ thị giác này cho học viên | Gamification nặng (streak, tim) dễ gây áp lực sai chỗ trong lớp học thật | AGORA lấy hình thức khối/icon, **bỏ** streak và điểm thi đua |
-| **ChatGPT Study Mode** | Học viên hỏi tự do, AI giảng lại | Giữ được mạch hội thoại | AI **thay thế** vai trò giải thích của giảng viên | AGORA đặt AI ở phía giảng viên; AI **không giảng bài**, chỉ quan sát và gợi ý |
+| **Kahoot / Quizizz** | Giảng viên bật câu hỏi → học viên trả lời → hiện biểu đồ phân bố đáp án | Học viên **không cần tài khoản**, chỉ cần mã phòng — VINLEARN copy đúng điểm này | Chỉ ra **biểu đồ số**, giảng viên phải tự diễn giải trong lúc đang giảng | VINLEARN chốt sẵn **một trạng thái + một hành động**, không bắt đọc biểu đồ |
+| **NotebookLM** | Trả lời kèm trích dẫn ngay cạnh mỗi câu | **Luôn hiển thị căn cứ cạnh câu trả lời** — VINLEARN gắn "evidence chip" là các con số thật cạnh mỗi gợi ý | Câu trả lời dài, đọc lúc rảnh thì được, lúc đang dạy thì không | Popup VINLEARN giới hạn cứng 60 ký tự tiêu đề + 140 ký tự hành động |
+| **Duolingo** | Bài học chia nhỏ, nút to, phản hồi tức thì, ít chữ | **Ngôn ngữ khối + icon thay chữ** — giảm tải nhận thức; VINLEARN dùng đúng hệ thị giác này cho học viên | Gamification nặng (streak, tim) dễ gây áp lực sai chỗ trong lớp học thật | VINLEARN lấy hình thức khối/icon, **bỏ** streak và điểm thi đua |
+| **ChatGPT Study Mode** | Học viên hỏi tự do, AI giảng lại | Giữ được mạch hội thoại | AI **thay thế** vai trò giải thích của giảng viên | VINLEARN đặt AI ở phía giảng viên; AI **không giảng bài**, chỉ quan sát và gợi ý |
 
 Nghiên cứu chia người, mỗi người 15': `<<ĐIỀN tên>>`.
 

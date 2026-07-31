@@ -69,6 +69,8 @@ import {
   Users,
   X,
   Zap,
+  ZoomIn,
+  ZoomOut,
   type LucideIcon,
 } from "lucide-react";
 
@@ -131,6 +133,8 @@ export const Icon = {
   settings: Settings,
   show: Eye,
   hide: EyeOff,
+  zoomIn: ZoomIn,
+  zoomOut: ZoomOut,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof Icon;

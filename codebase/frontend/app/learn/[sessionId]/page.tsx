@@ -42,6 +42,10 @@ interface ForceSyncPayload {
   sync_id: string;
 }
 
+/** Các nấc phóng slide. Nấc 1.0 là vừa khít khung, dưới nấc đó là thu nhỏ. */
+const ZOOM_STEPS = [0.6, 0.75, 0.9, 1, 1.25, 1.5, 2, 2.5, 3];
+const FIT_ZOOM_STEP = ZOOM_STEPS.indexOf(1);
+
 export default function LearnPage() {
   const params = useParams<{ sessionId: string }>();
   const sessionId = Number(params.sessionId);
@@ -74,6 +78,7 @@ export default function LearnPage() {
   const [syncClock, setSyncClock] = useState(() => Date.now());
   const [syncTimeoutSeconds, setSyncTimeoutSeconds] = useState<number | null>(null);
   const [syncNotice, setSyncNotice] = useState<SyncNotice | null>(null);
+  const [zoomStep, setZoomStep] = useState(FIT_ZOOM_STEP);
   const [askText, setAskText] = useState("");
   const [askBusy, setAskBusy] = useState(false);
   const [myQuestions, setMyQuestions] = useState<SupportQuestion[]>([]);
@@ -96,6 +101,29 @@ export default function LearnPage() {
   const socketRef = useRef<Socket | null>(null);
   const seenSyncIds = useRef(new Set<string>());
   const noticeTimer = useRef<number | null>(null);
+  const stageRef = useRef<HTMLElement>(null);
+
+  /* ------------------------------------------------------- phóng to slide */
+
+  const zoomBy = useCallback((delta: number) => {
+    setZoomStep((step) => Math.min(ZOOM_STEPS.length - 1, Math.max(0, step + delta)));
+  }, []);
+  const resetZoom = useCallback(() => setZoomStep(FIT_ZOOM_STEP), []);
+  const zoomPercent = Math.round(ZOOM_STEPS[zoomStep] * 100);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    // Ctrl + lăn chuột phóng slide thay vì phóng cả trang. Phải nghe kiểu
+    // non-passive mới chặn được hành vi mặc định của trình duyệt.
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      zoomBy(event.deltaY < 0 ? 1 : -1);
+    };
+    stage.addEventListener("wheel", onWheel, { passive: false });
+    return () => stage.removeEventListener("wheel", onWheel);
+  }, [zoomBy]);
 
   /* --------------------------------------------------------------- vào phiên */
 
@@ -406,7 +434,7 @@ export default function LearnPage() {
       if (payload.session_id === sessionId) applyQuestions([]);
     };
     const onSupportAnswered = () => {
-      void api.myQuestions(sessionId, profile.token).then(setMyQuestions).catch(() => {});
+      void api.myQuestions(sessionId, profile.token).then(setMyQuestions).catch(() => { });
     };
     const onTracking = (payload: TrackingSnapshot) => {
       if (
@@ -553,7 +581,7 @@ export default function LearnPage() {
               );
             }
           })
-          .catch(() => {});
+          .catch(() => { });
       }
     };
 
@@ -878,10 +906,12 @@ export default function LearnPage() {
   const ResultIcon =
     result?.correct === true ? Icon.correct : result?.correct === false ? Icon.wrong : Icon.skip;
   const panelOpen = Boolean(question || aiOpen);
-  const useLegacyStudentLayout = false;
 
   return (
-    <main className={`student-classroom ${panelOpen ? "student-classroom--panel" : ""}`}>
+    <main
+      className={`student-classroom ${panelOpen ? "student-classroom--panel" : ""}`}
+      style={{ "--slide-zoom": ZOOM_STEPS[zoomStep] } as React.CSSProperties}
+    >
       <header className="student-classroom__header flex items-center gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-blk border-2 border-line bg-sunken" title={avatarLabel(profile.avatar)}>
           <Avatar aria-label={`Ảnh đại diện ${avatarLabel(profile.avatar)}`} size={22} strokeWidth={2.4} />
@@ -900,320 +930,49 @@ export default function LearnPage() {
           onClick={() => setConfirmLeave(true)}
         />
       </header>
-      {useLegacyStudentLayout ? (
-        <>
-          <div className="flex gap-2">
-            <div className="flex flex-1 flex-col gap-4">
-              {ended ? (
-                <BlockCard className="flex items-center gap-3 p-4">
-                  <Icon.waiting aria-hidden size={24} strokeWidth={2.5} className="shrink-0 text-muted" />
-                  <p className="text-sm font-bold">Buổi học đã kết thúc. Bạn vẫn xem lại slide được.</p>
-                </BlockCard>
-              ) : null}
-          {slide ? (
-            <SlideCanvas slide={slide} total={slides.length} />
-          ) : (
-            <BlockCard className="flex h-56 items-center justify-center text-muted">
-              <Icon.waiting aria-label="Đang tải slide" size={40} strokeWidth={2.2} />
+      <section className="student-classroom__stage" ref={stageRef}>
+        <div className="student-classroom__notice">
+          {ended ? (
+            <BlockCard className="flex items-center gap-3 p-3">
+              <Icon.waiting aria-hidden size={22} className="shrink-0 text-muted" />
+              <p className="text-sm font-bold">Buổi học đã kết thúc. Bạn vẫn xem lại slide được.</p>
             </BlockCard>
-          )}
-
-          <div className="flex items-center gap-2">
-            <BlockButton
-              square
-              tone="plain"
-              aria-label="Slide trước"
-              icon={Icon.prev}
-              onClick={() => go(-1)}
-            />
-            <BlockButton
-              square
-              tone="plain"
-              aria-label="Slide sau"
-              icon={Icon.next}
-              onClick={() => go(1)}
-            />
-            <BlockButton
-              tone={follow ? "sky" : "plain"}
-              onClick={toggleFollow}
-              icon={follow ? Icon.link : Icon.unlink}
-              aria-pressed={follow}
-              className="flex-1 text-sm"
-            >
-              {follow ? "Đang theo dõi giảng viên" : "Tự đọc"}
-            </BlockButton>
-            <BlockButton
-              square
-              tone={handRaised ? "sun" : "plain"}
-              aria-label="Giơ tay"
-              title="Giơ tay"
-              icon={Icon.hand}
-              onClick={raiseHand}
-            />
-            <BlockButton
-              square
-              tone="grape"
-              aria-label="Gợi ý câu để hỏi"
-              title="Gợi ý câu để hỏi"
-              icon={Icon.idea}
-              onClick={askForHints}
-              disabled={hintBusy}
-            />
-          </div>
-
+          ) : null}
           {behind !== 0 ? (
-            <button
-              onClick={toggleFollow}
-              className="flex items-center justify-center gap-2 rounded-blk border-2 border-b-4 border-sky-deep bg-sky/10 px-4 py-3 text-sm font-extrabold text-sky"
-            >
-              <Icon.unlink aria-hidden size={18} strokeWidth={2.6} />
-              Giảng viên đang ở slide {lecturerIndex + 1} — bấm để quay lại
+            <button onClick={toggleFollow} className="flex items-center justify-center gap-2 rounded-blk border-2 border-b-4 border-sky-deep bg-sky/10 px-4 py-2.5 text-sm font-extrabold text-sky">
+              <Icon.unlink aria-hidden size={18} /> Giảng viên đang ở slide {lecturerIndex + 1} — bấm để quay lại
             </button>
           ) : null}
-
-          {hints ? (
-            <BlockCard className="flex animate-pop flex-col gap-3 p-5">
-              <div className="flex items-center gap-2">
-                <Icon.idea aria-hidden size={22} strokeWidth={2.5} className="text-grape" />
-                <p className="text-sm font-extrabold uppercase tracking-wide text-muted">
-                  Chọn một câu để gửi giảng viên
-                </p>
-                <button
-                  onClick={() => setHints(null)}
-                  aria-label="Đóng gợi ý"
-                  className="ml-auto text-muted"
-                >
-                  <Icon.close aria-hidden size={20} strokeWidth={2.6} />
-                </button>
-              </div>
-              {hints.questions.length === 0 ? (
-                <p className="text-sm font-bold text-muted">
-                  Chưa gợi ý được lúc này. Bạn cứ tự viết câu hỏi và giơ tay nhé.
-                </p>
-              ) : (
-                hints.questions.map((q, i) => (
-                  <button
-                    key={i}
-                    onClick={() => sendHint(q)}
-                    className="rounded-blk border-2 border-b-4 border-line bg-sunken px-4 py-3 text-left text-sm font-bold transition-transform active:translate-y-[3px] active:border-b-[1px]"
-                  >
-                    {q}
-                  </button>
-                ))
-              )}
+          {syncNotice ? (
+            <BlockCard
+              className={`flex items-center gap-3 p-3 ${syncNotice.kind === "warning" ? "border-sun-deep bg-sun/10" : "border-grass-deep bg-grass/10"
+                }`}
+            >
+              <Icon.link aria-hidden size={20} className="shrink-0" />
+              <p className="text-sm font-bold">{syncNotice.text}</p>
+            </BlockCard>
+          ) : null}
+          {syncRemaining !== null ? (
+            <BlockCard className="flex items-center justify-between gap-3 p-3">
+              <span className="text-sm font-bold">
+                Bạn đang tự đọc. Màn hình sẽ quay về slide của giảng viên sau{" "}
+                {formatDuration(syncRemaining)}.
+              </span>
+              {syncTimeoutSeconds ? (
+                <span className="text-xs font-extrabold text-muted">
+                  ngưỡng {formatDuration(syncTimeoutSeconds)}
+                </span>
+              ) : null}
             </BlockCard>
           ) : null}
         </div>
 
-        {question ? (
-          <BlockCard className="flex animate-pop flex-col gap-4 p-5">
-            <div className="flex items-start gap-3">
-              <Icon.question
-                aria-hidden
-                size={28}
-                strokeWidth={2.4}
-                className="mt-0.5 shrink-0 text-grape"
-              />
-              <p className="text-lg font-extrabold">{question.prompt}</p>
-            </div>
-
-            {question.type === "fill_blank" ? (
-              <input
-                value={typed}
-                onChange={(e) => setTyped(e.target.value)}
-                disabled={!!result}
-                placeholder="Nhập câu trả lời"
-                className="blk-input"
-              />
-            ) : question.type === "ordering" ? (
-              <div className="flex flex-col gap-2">
-                {ordering.map((item, i) => (
-                  <div
-                    key={item}
-                    className="flex items-center gap-2 rounded-blk border-2 border-b-4 border-line bg-sunken px-3 py-2"
-                  >
-                    <span className="w-6 text-center text-sm font-extrabold text-muted">{i + 1}</span>
-                    <span className="flex-1 text-sm font-bold">{item}</span>
-                    <button
-                      onClick={() => moveItem(i, i - 1)}
-                      disabled={i === 0 || !!result}
-                      aria-label="Đưa lên trên"
-                      className="text-muted disabled:opacity-30"
-                    >
-                      <Icon.prev aria-hidden size={20} strokeWidth={2.6} className="-rotate-90" />
-                    </button>
-                    <button
-                      onClick={() => moveItem(i, i + 1)}
-                      disabled={i === ordering.length - 1 || !!result}
-                      aria-label="Đưa xuống dưới"
-                      className="text-muted disabled:opacity-30"
-                    >
-                      <Icon.next aria-hidden size={20} strokeWidth={2.6} className="rotate-90" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {question.options.map((opt) => {
-                  const on = picked.includes(opt);
-                  return (
-                    <button
-                      key={opt}
-                      onClick={() => pick(opt)}
-                      disabled={!!result}
-                      aria-pressed={on}
-                      className={`rounded-blk border-2 border-b-4 px-4 py-3 text-left text-base font-bold transition-transform active:translate-y-[3px] active:border-b-[1px] disabled:opacity-60 ${on ? "border-sky-deep bg-sky/15 text-sky" : "border-line bg-sunken text-ink"
-                        }`}
-                    >
-                      {opt}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {result ? (
-              <div
-                className={`flex items-start gap-3 rounded-blk border-2 border-b-4 px-4 py-3 ${result.correct === true
-                  ? "border-grass-deep bg-grass/10"
-                  : result.correct === false
-                    ? "border-cherry-deep bg-cherry/10"
-                    : "border-line bg-sunken"
-                  }`}
-              >
-                <ResultIcon
-                  aria-hidden
-                  size={24}
-                  strokeWidth={2.6}
-                  className={`mt-0.5 shrink-0 ${result.correct === true
-                    ? "text-grass"
-                    : result.correct === false
-                      ? "text-cherry"
-                      : "text-muted"
-                    }`}
-                />
-                <p className="text-sm font-bold">
-                  {result.explanation ??
-                    (result.correct === true
-                      ? "Chính xác."
-                      : result.correct === false
-                        ? "Chưa đúng — nghe giảng viên chốt lại nhé."
-                        : result.correct === null
-                          ? "Đã ghi nhận."
-                        : "Đã bỏ qua.")}
-                </p>
-                {result.correct === false && result.correctAnswer ? (
-                  <p className="mt-1 text-sm font-extrabold text-grass">
-                    Đáp án đúng: {result.correctAnswer}
-                  </p>
-                ) : null}
-              </div>
-            ) : (
-              <>
-                <p className="text-center text-xs font-extrabold uppercase tracking-wide text-muted">
-                  Bạn chắc chắn tới đâu?
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                  <BlockButton
-                    tone="cherry"
-                    icon={Icon.unsure}
-                    disabled={!answerReady}
-                    onClick={() => submit(1)}
-                    className="text-xs"
-                  >
-                    Chưa chắc
-                  </BlockButton>
-                  <BlockButton
-                    tone="sun"
-                    icon={Icon.okay}
-                    disabled={!answerReady}
-                    onClick={() => submit(2)}
-                    className="text-xs"
-                  >
-                    Tạm ổn
-                  </BlockButton>
-                  <BlockButton
-                    tone="grass"
-                    icon={Icon.sure}
-                    disabled={!answerReady}
-                    onClick={() => submit(3)}
-                    className="text-xs"
-                  >
-                    Chắc chắn
-                  </BlockButton>
-                </div>
-                <button
-                  onClick={skip}
-                  className="mx-auto flex items-center gap-1 text-xs font-extrabold uppercase tracking-wide text-muted underline-offset-4 hover:underline"
-                >
-                  <Icon.skip aria-hidden size={14} strokeWidth={2.6} /> Bỏ qua câu này
-                </button>
-              </>
-            )}
-          </BlockCard>
-        ) : null}
-      </div>
-
-      <BlockConfirm
-        open={confirmLeave}
-        icon={Icon.exit}
-        tone="cherry"
-        title="Rời lớp bây giờ?"
-        description={
-          ended
-            ? "Buổi học đã kết thúc, bạn rời lớp lúc nào cũng được."
-            : "Lớp vẫn đang học. Rời xong muốn vào lại thì phải gõ mã phòng lần nữa."
-        }
-        confirmLabel="Rời lớp"
-        confirmIcon={Icon.exit}
-        cancelLabel="Ở lại học tiếp"
-        onConfirm={leave}
-        onCancel={() => setConfirmLeave(false)}
-      />
-        </>
-      ) : (
-        <>
-      <div className="student-classroom__notice flex flex-col gap-3">
-        {ended ? (
-          <BlockCard className="flex items-center gap-3 p-4">
-            <Icon.waiting aria-hidden size={24} className="text-muted" />
-            <p className="text-sm font-bold">Buổi học đã kết thúc. Bạn vẫn xem lại slide được.</p>
-          </BlockCard>
-        ) : null}
-        {behind !== 0 ? (
-          <button onClick={toggleFollow} className="flex items-center justify-center gap-2 rounded-blk border-2 border-b-4 border-sky-deep bg-sky/10 px-4 py-3 text-sm font-extrabold text-sky">
-            <Icon.unlink aria-hidden size={18} /> Giảng viên đang ở slide {lecturerIndex + 1} — bấm để quay lại
-          </button>
-        ) : null}
-        {syncNotice ? (
-          <BlockCard
-            className={`flex items-center gap-3 p-3 ${
-              syncNotice.kind === "warning" ? "border-sun-deep bg-sun/10" : "border-grass-deep bg-grass/10"
-            }`}
-          >
-            <Icon.link aria-hidden size={20} className="shrink-0" />
-            <p className="text-sm font-bold">{syncNotice.text}</p>
-          </BlockCard>
-        ) : null}
-        {syncRemaining !== null ? (
-          <BlockCard className="flex items-center justify-between gap-3 p-3">
-            <span className="text-sm font-bold">
-              Bạn đang tự đọc. Màn hình sẽ quay về slide của giảng viên sau{" "}
-              {formatDuration(syncRemaining)}.
-            </span>
-            {syncTimeoutSeconds ? (
-              <span className="text-xs font-extrabold text-muted">
-                ngưỡng {formatDuration(syncTimeoutSeconds)}
-              </span>
-            ) : null}
-          </BlockCard>
-        ) : null}
-      </div>
-
-      <section className="student-classroom__stage">
-        {slide ? <SlideCanvas slide={slide} total={slides.length} /> : (
-          <BlockCard className="flex h-56 items-center justify-center text-muted">
+        {slide ? (
+          <div className="student-slide">
+            <SlideCanvas slide={slide} total={slides.length} />
+          </div>
+        ) : (
+          <BlockCard className="m-auto flex h-40 w-full max-w-md items-center justify-center text-muted">
             <Icon.waiting aria-label="Đang tải slide" size={40} />
           </BlockCard>
         )}
@@ -1223,124 +982,137 @@ export default function LearnPage() {
         <BlockButton square tone="plain" aria-label="Slide trước" icon={Icon.prev} onClick={() => go(-1)} disabled={slideControlsLocked} />
         <BlockButton square tone="plain" aria-label="Slide sau" icon={Icon.next} onClick={() => go(1)} disabled={slideControlsLocked} />
         <BlockButton tone={follow ? "sky" : "plain"} onClick={toggleFollow} icon={follow ? Icon.link : Icon.unlink} aria-pressed={follow} className="text-sm" disabled={slideControlsLocked}>
-          {follow ? "Đang bám giảng viên" : "Tự đọc"}
+          {follow ? "Đang theo dõi giảng viên" : "Tự đọc"}
         </BlockButton>
-        <BlockButton square tone={handRaised ? "sun" : "plain"} aria-label="Giơ tay" icon={Icon.hand} onClick={raiseHand} />
+
+        <div className="student-zoom">
+          <BlockButton square tone="plain" aria-label="Thu nhỏ slide" title="Thu nhỏ slide" icon={Icon.zoomOut} onClick={() => zoomBy(-1)} disabled={zoomStep === 0} />
+          <button
+            type="button"
+            onClick={resetZoom}
+            className="student-zoom__value"
+            title="Về cỡ vừa khung"
+            aria-label={`Cỡ slide ${zoomPercent}%. Bấm để về cỡ vừa khung.`}
+          >
+            {zoomPercent}%
+          </button>
+          <BlockButton square tone="plain" aria-label="Phóng to slide" title="Phóng to slide" icon={Icon.zoomIn} onClick={() => zoomBy(1)} disabled={zoomStep === ZOOM_STEPS.length - 1} />
+        </div>
+
+        <BlockButton square tone={handRaised ? "sun" : "plain"} aria-label="Giơ tay" title="Giơ tay" icon={Icon.hand} onClick={raiseHand} />
         {!aiOpen ? (
-          <BlockButton tone="grape" aria-label="Hỏi AI về slide" icon={Icon.ai} onClick={openAiPanel} disabled={hintBusy || !!question} className="ml-auto -translate-x-20">
+          <BlockButton tone="grape" aria-label="Hỏi AI về slide" icon={Icon.ai} onClick={openAiPanel} disabled={hintBusy || !!question} className="ml-auto">
             Hỏi AI
           </BlockButton>
         ) : null}
       </div>
 
-      {aiOpen && !question ? (
-        <aside className="student-classroom__panel ai-help-panel animate-pop">
-          <div className="ai-help-panel__head">
-            <div>
-              <p className="ai-help-panel__eyebrow">Hỗ trợ theo Slide {index + 1}</p>
-              <h2>Hỏi khi bạn cần</h2>
-            </div>
-            <button onClick={() => setAiOpen(false)} aria-label="Đóng hỗ trợ AI" className="ai-help-panel__close"><Icon.close aria-hidden size={22} /></button>
-          </div>
-          <div className="ai-help-panel__tabs">
-            <button className={aiTab === "ai" ? "is-active" : ""} onClick={() => setAiTab("ai")}>Hỏi AI</button>
-            <button className={aiTab === "human" ? "is-active" : ""} onClick={() => setAiTab("human")}>Nhờ hỗ trợ</button>
-          </div>
+          {aiOpen && !question ? (
+            <aside className="student-classroom__panel ai-help-panel animate-pop">
+              <div className="ai-help-panel__head">
+                <div>
+                  <p className="ai-help-panel__eyebrow">Hỗ trợ theo Slide {index + 1}</p>
+                  <h2>Hỏi khi bạn cần</h2>
+                </div>
+                <button onClick={() => setAiOpen(false)} aria-label="Đóng hỗ trợ AI" className="ai-help-panel__close"><Icon.close aria-hidden size={22} /></button>
+              </div>
+              <div className="ai-help-panel__tabs">
+                <button className={aiTab === "ai" ? "is-active" : ""} onClick={() => setAiTab("ai")}>Hỏi AI</button>
+                <button className={aiTab === "human" ? "is-active" : ""} onClick={() => setAiTab("human")}>Nhờ hỗ trợ</button>
+              </div>
 
-          {aiTab === "ai" ? (
-            <>
-              <div className="ai-help-panel__scope"><Icon.shield aria-hidden size={18} /> AI trả lời dựa trên toàn bộ bộ slide và ưu tiên slide hiện tại.</div>
-              {aiSummary ? <div className="ai-help-panel__summary"><span>Tóm tắt slide</span><p>{aiSummary}</p></div> : null}
-              <div className="ai-help-panel__messages">
-                {aiMessages.map((message, messageIndex) => (
-                  <div key={messageIndex} className={`ai-message ai-message--${message.role}`}>
-                    <p>{message.text}</p>
-                    {message.role === "ai" && message.score !== undefined ? (
-                      <small>Mức bối rối {Math.round(message.score * 100)}%{message.escalated ? " · đã chuyển hỗ trợ" : ""}</small>
-                    ) : null}
+              {aiTab === "ai" ? (
+                <>
+                  <div className="ai-help-panel__scope"><Icon.shield aria-hidden size={18} /> AI trả lời dựa trên toàn bộ bộ slide và ưu tiên slide hiện tại.</div>
+                  {aiSummary ? <div className="ai-help-panel__summary"><span>Tóm tắt slide</span><p>{aiSummary}</p></div> : null}
+                  <div className="ai-help-panel__messages">
+                    {aiMessages.map((message, messageIndex) => (
+                      <div key={messageIndex} className={`ai-message ai-message--${message.role}`}>
+                        <p>{message.text}</p>
+                        {message.role === "ai" && message.score !== undefined ? (
+                          <small>Mức bối rối {Math.round(message.score * 100)}%{message.escalated ? " · đã chuyển hỗ trợ" : ""}</small>
+                        ) : null}
+                      </div>
+                    ))}
+                    {aiMessages.length === 0 && hints?.questions.map((suggestion) => (
+                      <button key={suggestion} className="ai-help-panel__suggestion" onClick={() => void sendHint(suggestion)}>{suggestion}</button>
+                    ))}
+                    {aiBusy ? <div className="ai-message ai-message--ai">AI đang đọc slide…</div> : null}
                   </div>
-                ))}
-                {aiMessages.length === 0 && hints?.questions.map((suggestion) => (
-                  <button key={suggestion} className="ai-help-panel__suggestion" onClick={() => void sendHint(suggestion)}>{suggestion}</button>
-                ))}
-                {aiBusy ? <div className="ai-message ai-message--ai">AI đang đọc slide…</div> : null}
-              </div>
-              <div className="ai-help-panel__composer">
-                <input value={aiInput} onChange={(event) => setAiInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void sendAiMessage(); }} placeholder="Nhập câu hỏi về slide này…" maxLength={600} />
-                <button onClick={() => void sendAiMessage()} disabled={!aiInput.trim() || aiBusy} aria-label="Gửi cho AI"><Icon.send aria-hidden size={20} /></button>
-              </div>
-            </>
-          ) : (
-            <div className="ai-help-panel__human">
-              <p>Gửi trực tiếp cho giảng viên và trợ giảng khi bạn cần người thật hỗ trợ.</p>
-              <textarea value={askText} onChange={(event) => setAskText(event.target.value)} placeholder="Bạn đang vướng phần nào?" maxLength={600} />
-              <button onClick={() => void askQuestion()} disabled={!askText.trim() || askBusy}><Icon.send aria-hidden size={18} /> Gửi yêu cầu hỗ trợ</button>
-              {myQuestions.slice(0, 3).map((item) => (
-                <div key={item.id} className="ai-help-panel__ticket">
-                  <p>{item.text}</p>
-                  <small>{item.status === "answered" ? `Đã trả lời bởi ${item.answered_by === "assistant" ? "trợ giảng" : item.answered_by === "ai" ? "AI" : "giảng viên"}` : "Đang chờ đội ngũ giảng dạy"}</small>
-                  {item.answer_text ? <strong>{item.answer_text}</strong> : null}
-                  {item.answer_disclaimer ? <em>{item.answer_disclaimer}</em> : null}
+                  <div className="ai-help-panel__composer">
+                    <input value={aiInput} onChange={(event) => setAiInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void sendAiMessage(); }} placeholder="Nhập câu hỏi về slide này…" maxLength={600} />
+                    <button onClick={() => void sendAiMessage()} disabled={!aiInput.trim() || aiBusy} aria-label="Gửi cho AI"><Icon.send aria-hidden size={20} /></button>
+                  </div>
+                </>
+              ) : (
+                <div className="ai-help-panel__human">
+                  <p>Gửi trực tiếp cho giảng viên và trợ giảng khi bạn cần người thật hỗ trợ.</p>
+                  <textarea value={askText} onChange={(event) => setAskText(event.target.value)} placeholder="Bạn đang vướng phần nào?" maxLength={600} />
+                  <button onClick={() => void askQuestion()} disabled={!askText.trim() || askBusy}><Icon.send aria-hidden size={18} /> Gửi yêu cầu hỗ trợ</button>
+                  {myQuestions.slice(0, 3).map((item) => (
+                    <div key={item.id} className="ai-help-panel__ticket">
+                      <p>{item.text}</p>
+                      <small>{item.status === "answered" ? `Đã trả lời bởi ${item.answered_by === "assistant" ? "trợ giảng" : item.answered_by === "ai" ? "AI" : "giảng viên"}` : "Đang chờ đội ngũ giảng dạy"}</small>
+                      {item.answer_text ? <strong>{item.answer_text}</strong> : null}
+                      {item.answer_disclaimer ? <em>{item.answer_disclaimer}</em> : null}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-        </aside>
-      ) : null}
+              )}
+            </aside>
+          ) : null}
 
-      {question ? (
-        <BlockCard className="student-classroom__panel student-question-panel flex animate-pop flex-col gap-4 p-5">
-          <div className="flex items-start gap-3">
-            <Icon.question aria-hidden size={28} className="mt-0.5 shrink-0 text-grape" />
-            <div><p className="text-xs font-extrabold uppercase tracking-wide text-muted">Câu hỏi nhanh · Slide {index + 1}</p><p className="mt-1 text-lg font-extrabold">{question.prompt}</p></div>
-          </div>
-          {question.type === "fill_blank" ? (
-            <input value={typed} onChange={(event) => setTyped(event.target.value)} disabled={!!result} placeholder="Nhập câu trả lời" className="blk-input" />
-          ) : question.type === "ordering" ? (
-            <div className="flex flex-col gap-2">
-              {ordering.map((item, itemIndex) => (
-                <div key={item} className="flex items-center gap-2 rounded-blk border-2 border-line bg-sunken px-3 py-2">
-                  <span className="w-6 text-center text-sm font-extrabold text-muted">{itemIndex + 1}</span>
-                  <span className="flex-1 text-sm font-bold">{item}</span>
-                  <button onClick={() => moveItem(itemIndex, itemIndex - 1)} disabled={itemIndex === 0 || !!result}><Icon.prev aria-hidden size={18} className="-rotate-90" /></button>
-                  <button onClick={() => moveItem(itemIndex, itemIndex + 1)} disabled={itemIndex === ordering.length - 1 || !!result}><Icon.next aria-hidden size={18} className="rotate-90" /></button>
+          {question ? (
+            <BlockCard className="student-classroom__panel student-question-panel flex animate-pop flex-col gap-4 p-5">
+              <div className="flex items-start gap-3">
+                <Icon.question aria-hidden size={28} className="mt-0.5 shrink-0 text-grape" />
+                <div><p className="text-xs font-extrabold uppercase tracking-wide text-muted">Câu hỏi nhanh · Slide {index + 1}</p><p className="mt-1 text-lg font-extrabold">{question.prompt}</p></div>
+              </div>
+              {question.type === "fill_blank" ? (
+                <input value={typed} onChange={(event) => setTyped(event.target.value)} disabled={!!result} placeholder="Nhập câu trả lời" className="blk-input" />
+              ) : question.type === "ordering" ? (
+                <div className="flex flex-col gap-2">
+                  {ordering.map((item, itemIndex) => (
+                    <div key={item} className="flex items-center gap-2 rounded-blk border-2 border-line bg-sunken px-3 py-2">
+                      <span className="w-6 text-center text-sm font-extrabold text-muted">{itemIndex + 1}</span>
+                      <span className="flex-1 text-sm font-bold">{item}</span>
+                      <button onClick={() => moveItem(itemIndex, itemIndex - 1)} disabled={itemIndex === 0 || !!result}><Icon.prev aria-hidden size={18} className="-rotate-90" /></button>
+                      <button onClick={() => moveItem(itemIndex, itemIndex + 1)} disabled={itemIndex === ordering.length - 1 || !!result}><Icon.next aria-hidden size={18} className="rotate-90" /></button>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {question.options.map((option) => {
-                const selected = picked.includes(option);
-                return <button key={option} onClick={() => pick(option)} disabled={!!result} className={`rounded-blk border-2 border-b-4 px-4 py-3 text-left text-sm font-bold ${selected ? "border-sky-deep bg-sky/15 text-sky" : "border-line bg-sunken text-ink"}`}>{option}</button>;
-              })}
-            </div>
-          )}
-          {result ? (
-            <div className={`flex items-start gap-3 rounded-blk border-2 px-4 py-3 ${result.correct === true ? "border-grass-deep bg-grass/10" : result.correct === false ? "border-cherry-deep bg-cherry/10" : "border-line bg-sunken"}`}>
-              <ResultIcon aria-hidden size={22} className={result.correct === true ? "text-grass" : result.correct === false ? "text-cherry" : "text-muted"} />
-              <div>
-                <p className="text-sm font-bold">{result.explanation ?? (result.correct === true ? "Chính xác." : result.correct === false ? "Chưa đúng — nghe giảng viên chốt lại nhé." : "Đã ghi nhận.")}</p>
-                {result.correct === false && result.correctAnswer ? (
-                  <p className="mt-1 text-sm font-extrabold text-grass">Đáp án đúng: {result.correctAnswer}</p>
-                ) : null}
-                <small className="text-muted">Câu hỏi sẽ tự đóng…</small>
-              </div>
-            </div>
-          ) : (
-            <>
-              <p className="text-center text-xs font-extrabold uppercase tracking-wide text-muted">Bạn chắc chắn tới đâu?</p>
-              <div className="grid grid-cols-3 gap-2">
-                <BlockButton tone="cherry" disabled={!answerReady} onClick={() => submit(1)} className="text-xs">Chưa chắc</BlockButton>
-                <BlockButton tone="sun" disabled={!answerReady} onClick={() => submit(2)} className="text-xs">Tạm ổn</BlockButton>
-                <BlockButton tone="grass" disabled={!answerReady} onClick={() => submit(3)} className="text-xs">Chắc chắn</BlockButton>
-              </div>
-              <button onClick={skip} className="mx-auto flex items-center gap-1 text-xs font-extrabold uppercase tracking-wide text-muted"><Icon.skip aria-hidden size={14} /> Bỏ qua</button>
-            </>
-          )}
-        </BlockCard>
-      ) : null}
-        </>
-      )}
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {question.options.map((option) => {
+                    const selected = picked.includes(option);
+                    return <button key={option} onClick={() => pick(option)} disabled={!!result} className={`rounded-blk border-2 border-b-4 px-4 py-3 text-left text-sm font-bold ${selected ? "border-sky-deep bg-sky/15 text-sky" : "border-line bg-sunken text-ink"}`}>{option}</button>;
+                  })}
+                </div>
+              )}
+              {result ? (
+                <div className={`flex items-start gap-3 rounded-blk border-2 px-4 py-3 ${result.correct === true ? "border-grass-deep bg-grass/10" : result.correct === false ? "border-cherry-deep bg-cherry/10" : "border-line bg-sunken"}`}>
+                  <ResultIcon aria-hidden size={22} className={result.correct === true ? "text-grass" : result.correct === false ? "text-cherry" : "text-muted"} />
+                  <div>
+                    <p className="text-sm font-bold">{result.explanation ?? (result.correct === true ? "Chính xác." : result.correct === false ? "Chưa đúng — nghe giảng viên chốt lại nhé." : "Đã ghi nhận.")}</p>
+                    {result.correct === false && result.correctAnswer ? (
+                      <p className="mt-1 text-sm font-extrabold text-grass">Đáp án đúng: {result.correctAnswer}</p>
+                    ) : null}
+                    <small className="text-muted">Câu hỏi sẽ tự đóng…</small>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="text-center text-xs font-extrabold uppercase tracking-wide text-muted">Bạn chắc chắn tới đâu?</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <BlockButton tone="cherry" disabled={!answerReady} onClick={() => submit(1)} className="text-xs">Chưa chắc</BlockButton>
+                    <BlockButton tone="sun" disabled={!answerReady} onClick={() => submit(2)} className="text-xs">Tạm ổn</BlockButton>
+                    <BlockButton tone="grass" disabled={!answerReady} onClick={() => submit(3)} className="text-xs">Chắc chắn</BlockButton>
+                  </div>
+                  <button onClick={skip} className="mx-auto flex items-center gap-1 text-xs font-extrabold uppercase tracking-wide text-muted"><Icon.skip aria-hidden size={14} /> Bỏ qua</button>
+                </>
+              )}
+            </BlockCard>
+          ) : null}
       <BlockConfirm
         open={confirmLeave}
         icon={Icon.exit}

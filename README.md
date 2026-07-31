@@ -1,4 +1,4 @@
-# AGORA — hỗ trợ giảng dạy theo thời gian thực
+# VINLEARN — hỗ trợ giảng dạy theo thời gian thực
 
 Bài nộp Mini Hackathon AI · Batch 03 · **Hướng A — VLearn** · tính năng mới.
 

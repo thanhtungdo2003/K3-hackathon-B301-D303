@@ -1,13 +1,15 @@
-"""AGORA backend — FastAPI + Socket.IO. Không có dữ liệu mô phỏng."""
+"""VINLEARN backend — FastAPI + Socket.IO. Không có dữ liệu mô phỏng."""
 from __future__ import annotations
 
 import socketio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from . import realtime
 from .config import get_settings
-from .db import Base, engine
+from .db import Base, engine, ensure_added_columns
+from .modules.slide_import import PAGE_URL_PREFIX
 from .routers import (
     assistant,
     assistant_chat,
@@ -22,7 +24,7 @@ from .routers import (
 settings = get_settings()
 
 api = FastAPI(
-    title="AGORA API",
+    title="VINLEARN API",
     version="1.0.0",
     description="Hỗ trợ giảng dạy theo thời gian thực: phòng học, checkpoint, Teaching Advisor.",
 )
@@ -43,10 +45,15 @@ api.include_router(assistant_chat.router)
 api.include_router(student.router)
 api.include_router(assistant.router)
 
+# Ảnh trang PDF đã render. Học viên xem slide mà không cần đăng nhập, nên thư mục
+# này công khai — chỉ chứa ảnh, tên file ngẫu nhiên, không có file gốc.
+api.mount(PAGE_URL_PREFIX, StaticFiles(directory=settings.slide_page_dir), name="slide-pages")
+
 
 @api.on_event("startup")
 def on_startup() -> None:
     Base.metadata.create_all(engine)
+    ensure_added_columns()
 
 
 @api.on_event("shutdown")

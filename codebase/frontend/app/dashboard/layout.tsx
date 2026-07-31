@@ -66,7 +66,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           >
             <RobotOutlined style={{ fontSize: 16, color: "#fff" }} />
           </span>
-          <span className="text-lg font-extrabold tracking-tight">AGORA</span>
+          <span className="text-lg font-extrabold tracking-tight">VINLEARN</span>
         </Link>
         <Menu
           theme="dark"

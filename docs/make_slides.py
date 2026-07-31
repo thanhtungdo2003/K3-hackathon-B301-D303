@@ -191,7 +191,7 @@ class Slide:
 
 def build() -> None:
     c = pdfcanvas.Canvas(str(OUT), pagesize=(W, H))
-    c.setTitle("AGORA — Teaching Advisor")
+    c.setTitle("VINLEARN — Teaching Advisor")
 
     # ── 1 · User & Job ──────────────────────────────────────────────────
     s = Slide(c, 1, "1 · User & Job", "Giảng viên biết lớp hổng khi đã quá muộn", '45"')

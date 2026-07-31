@@ -1,5 +1,5 @@
 /**
- * Lớp gọi API duy nhất của AGORA.
+ * Lớp gọi API duy nhất của VINLEARN.
  * Không có dữ liệu mô phỏng — mọi số liệu đều đến từ backend thật.
  */
 export const API_BASE =

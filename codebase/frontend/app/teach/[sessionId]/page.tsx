@@ -47,6 +47,7 @@ import {
 } from "@/lib/api";
 import { getToken, useAuth } from "@/lib/auth";
 import { joinLecturerSession } from "@/lib/socket";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 const { Header, Content } = Layout;
 const pct = (v: number) => `${Math.round(v * 100)}%`;
@@ -453,6 +454,19 @@ export default function LecternPage() {
             >
               {/* Cửa sổ trình chiếu nằm chồng đúng lên khung này, nên phải đo được nó. */}
               <div ref={previewRef} className="relative">
+                <div className="absolute inset-0 flex">
+                  <div className="flex-1 h-full hover:cursor-pointer hover:opacity-80 opacity-0 flex items-center justify-center"
+                    onClick={() => goto(index - 1)}
+                  >
+                    <ChevronLeft size={32} className="text-gray-700" />
+                  </div>
+                  <div className="flex-1 h-full"></div>
+                  <div className="flex-1 h-full hover:cursor-pointer hover:opacity-80 opacity-0 flex items-center justify-center"
+                    onClick={() => goto(index + 1)}
+                  >
+                    <ChevronRight size={32} className="text-gray-700" />
+                  </div>
+                </div>
                 {slide ? (
                   <SlideCanvas slide={slide} total={slides.length} />
                 ) : (

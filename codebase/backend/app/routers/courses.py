@@ -11,7 +11,7 @@ from ..config import get_settings
 from ..db import get_db
 from ..models import Checkpoint, Course, Question, Room, Slide, User
 from ..modules import llm
-from ..modules.slide_import import parse_pptx, parse_pdf, slide_plain_text
+from ..modules.slide_import import page_image_url, parse_pptx, parse_pdf, slide_plain_text
 from ..schemas import (
     CheckpointCreate,
     CheckpointOut,
@@ -94,6 +94,7 @@ def _slide_out(slide: Slide) -> SlideOut:
         source=slide.source,
         checkpoint_id=cp.id if cp else None,
         question_count=len(cp.questions) if cp else 0,
+        page_image_url=page_image_url(slide.page_image),
     )
 
 
@@ -287,9 +288,11 @@ async def upload_pdf(
         await file.close()
 
     try:
-        parsed = parse_pdf(dest)
+        parsed = parse_pdf(dest, page_image_dir=settings.slide_page_dir)
     except Exception as exc:
-        raise HTTPException(status_code=422, detail=f"Không đọc được file PDF: {type(exc).__name__}") from exc
+        dest.unlink(missing_ok=True)
+        reason = str(exc).strip() or type(exc).__name__
+        raise HTTPException(status_code=422, detail=f"Không đọc được file PDF: {reason}") from exc
 
     if not parsed:
         dest.unlink(missing_ok=True)
@@ -312,6 +315,7 @@ async def upload_pdf(
             blocks=item["blocks"],
             notes=item["notes"],
             source="pdf",
+            page_image=item.get("page_image", ""),
         )
         db.add(slide)
         created.append(slide)

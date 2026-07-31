@@ -3,7 +3,7 @@ import Providers from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AGORA — Dạy học theo thời gian thực",
+  title: "VINLEARN — Dạy học theo thời gian thực",
   description:
     "Nền tảng giảng dạy trực tiếp: trình chiếu slide, checkpoint câu hỏi và cảnh báo lớp đang mắc ở đâu.",
 };

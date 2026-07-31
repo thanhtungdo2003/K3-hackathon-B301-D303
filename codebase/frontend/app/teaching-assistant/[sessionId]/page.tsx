@@ -882,7 +882,7 @@ export default function TeachingAssistantPage() {
             <span className="min-w-0">
               <span className="block font-extrabold">Trợ giảng</span>
               <span className="block text-[11px]" style={{ opacity: 0.7 }}>
-                AGORA Console
+                VINLEARN Console
               </span>
             </span>
           ) : null}
