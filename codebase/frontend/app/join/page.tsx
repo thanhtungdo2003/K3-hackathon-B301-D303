@@ -139,7 +139,7 @@ export default function JoinPage() {
           <span className="grid h-11 w-11 place-items-center rounded-blk border-2 border-b-4 border-line bg-surface">
             <Icon.brand aria-hidden size={22} strokeWidth={2.5} className="text-sky" />
           </span>
-          <span className="text-xl font-extrabold tracking-tight">AGORA</span>
+          <span className="text-xl font-extrabold tracking-tight">VINLEARN</span>
         </Link>
         <ThemeToggle />
       </header>

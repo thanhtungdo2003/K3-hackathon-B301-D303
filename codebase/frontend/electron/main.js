@@ -1,5 +1,5 @@
 /**
- * Vỏ Electron của AGORA.
+ * Vỏ Electron của VINLEARN.
  *
  * Lý do phải có: cửa sổ trình chiếu cần không viền, khoá kích thước, không cho
  * kéo đi và không cho đóng. Trình duyệt thường không làm được mấy việc đó —
@@ -8,7 +8,7 @@
 const { app, BrowserWindow, ipcMain, screen } = require("electron");
 const path = require("node:path");
 
-const APP_URL = process.env.AGORA_APP_URL || "http://localhost:3000";
+const APP_URL = process.env.VINLEARN_APP_URL || "http://localhost:3000";
 
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
@@ -25,7 +25,7 @@ function createMainWindow() {
     height: 960,
     minWidth: 1100,
     backgroundColor: "#f4f7fd",
-    title: "AGORA",
+    title: "VINLEARN",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Trang giới thiệu AGORA.
+ * Trang giới thiệu VINLEARN.
  * Nội dung chia thành các "slidebox" — mỗi ý một khối, không có đoạn văn dài.
  */
 import Link from "next/link";
@@ -18,7 +18,7 @@ export default function LandingPage() {
           <span className="grid h-12 w-12 place-items-center rounded-blk border-2 border-b-4 border-line bg-surface">
             <Icon.brand aria-hidden size={24} strokeWidth={2.5} className="text-sky" />
           </span>
-          <span className="text-2xl font-extrabold tracking-tight">AGORA</span>
+          <span className="text-2xl font-extrabold tracking-tight">VINLEARN</span>
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle />
@@ -238,7 +238,7 @@ export default function LandingPage() {
       <footer className="mt-12 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-bold uppercase tracking-widest text-muted">
         <span className="inline-flex items-center gap-2">
           <Icon.brand aria-hidden size={14} strokeWidth={2.8} />
-          AGORA
+          VINLEARN
         </span>
         <span>VinLearn — Batch 03 K4 AI Product Hackathon</span>
       </footer>

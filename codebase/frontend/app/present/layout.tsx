@@ -6,7 +6,7 @@
  * mọi thứ khác đều là nhiễu.
  */
 export const metadata = {
-  title: "AGORA — Trình chiếu",
+  title: "VINLEARN — Trình chiếu",
 };
 
 export default function PresentLayout({ children }: { children: React.ReactNode }) {
