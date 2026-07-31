@@ -37,7 +37,12 @@ import QuestionForm, {
   toQuestionIn,
   type QuestionFormValues,
 } from "@/components/QuestionForm";
-import { BentoBar, BentoCard, BentoGrid, BentoStat } from "@/components/ai/Bento";
+import {
+  BentoBar,
+  BentoCard,
+  BentoGrid,
+  BentoStat,
+} from "@/components/ai/Bento";
 import {
   api,
   type CheckpointOut,
@@ -49,7 +54,8 @@ import {
 } from "@/lib/api";
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
-const typeLabel = (t: string) => QUESTION_TYPES.find((x) => x.value === t)?.label ?? t;
+const typeLabel = (t: string) =>
+  QUESTION_TYPES.find((x) => x.value === t)?.label ?? t;
 
 export default function CourseDetailPage() {
   const params = useParams<{ id: string }>();
@@ -98,27 +104,36 @@ export default function CourseDetailPage() {
 
   const slide = slides[active] ?? null;
   const checkpoint = useMemo(
-    () => (slide ? (checkpoints.find((c) => c.slide_id === slide.id) ?? null) : null),
+    () =>
+      slide ? (checkpoints.find((c) => c.slide_id === slide.id) ?? null) : null,
     [checkpoints, slide],
   );
 
-  async function upload(opt: any) {
-    const file = opt.file as File;
-    setUploading(true);
-    try {
-      const created = await api.uploadPptx(courseId, file, true);
-      message.success(`Đã nhập ${created.length} slide từ ${file.name}.`);
-      opt.onSuccess?.({}, new XMLHttpRequest());
-      setActive(0);
-      await load();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Không tải được file.";
-      message.error(msg);
-      opt.onError?.(new Error(msg));
-    } finally {
-      setUploading(false);
-    }
-  }
+  const uploadHandler =
+    (
+      uploadFn: (
+        courseId: number,
+        file: File,
+        replace?: boolean,
+      ) => Promise<SlideOut[]>,
+    ) =>
+    async (opt: any) => {
+      const file = opt.file as File;
+      setUploading(true);
+      try {
+        const created = await uploadFn(courseId, file, true);
+        message.success(`Đã nhập ${created.length} slide từ ${file.name}.`);
+        opt.onSuccess?.({}, new XMLHttpRequest());
+        setActive(0);
+        await load();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Không tải được file.";
+        message.error(msg);
+        opt.onError?.(new Error(msg));
+      } finally {
+        setUploading(false);
+      }
+    };
 
   async function addCheckpoint() {
     if (!slide) return;
@@ -130,7 +145,9 @@ export default function CourseDetailPage() {
       message.success("Đã tạo bộ câu hỏi cho slide.");
       await load();
     } catch (err) {
-      message.error(err instanceof Error ? err.message : "Không tạo được bộ câu hỏi.");
+      message.error(
+        err instanceof Error ? err.message : "Không tạo được checkpoint.",
+      );
     }
   }
 
@@ -139,7 +156,9 @@ export default function CourseDetailPage() {
       await api.updateCheckpoint(cp.id, { active: activeState });
       await load();
     } catch (err) {
-      message.error(err instanceof Error ? err.message : "Không đổi được trạng thái.");
+      message.error(
+        err instanceof Error ? err.message : "Không đổi được trạng thái.",
+      );
     }
   }
 
@@ -169,7 +188,9 @@ export default function CourseDetailPage() {
       qForm.resetFields();
       await load();
     } catch (err) {
-      message.error(err instanceof Error ? err.message : "Không lưu được câu hỏi.");
+      message.error(
+        err instanceof Error ? err.message : "Không lưu được câu hỏi.",
+      );
     } finally {
       setQSaving(false);
     }
@@ -195,7 +216,11 @@ export default function CourseDetailPage() {
         content: (
           <ul className="m-0 list-none space-y-2 p-0">
             {res.questions.map((q: QuestionIn, i: number) => (
-              <li key={i} className="rounded-xl px-3 py-2" style={{ background: "var(--ai-bg)" }}>
+              <li
+                key={i}
+                className="rounded-xl px-3 py-2"
+                style={{ background: "var(--ai-bg)" }}
+              >
                 <Typography.Text strong>{q.prompt}</Typography.Text>
                 <div>
                   <Typography.Text type="secondary" style={{ fontSize: 12 }}>
@@ -219,7 +244,9 @@ export default function CourseDetailPage() {
         },
       });
     } catch (err) {
-      message.error(err instanceof Error ? err.message : "Không gọi được mô hình.");
+      message.error(
+        err instanceof Error ? err.message : "Không gọi được mô hình.",
+      );
     } finally {
       setDrafting(false);
     }
@@ -252,24 +279,63 @@ export default function CourseDetailPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex items-center gap-3">
           <Link href="/dashboard/courses">
-            <Button icon={<ArrowLeftOutlined />} aria-label="Quay lại danh sách khoá học" />
+            <Button
+              icon={<ArrowLeftOutlined />}
+              aria-label="Quay lại danh sách khoá học"
+            />
           </Link>
           <div className="min-w-0">
-            <Typography.Text style={{ color: "var(--ai-muted)", fontWeight: 700, fontSize: 12 }}>
+            <Typography.Text
+              style={{
+                color: "var(--ai-muted)",
+                fontWeight: 700,
+                fontSize: 12,
+              }}
+            >
               {course?.subject?.toUpperCase() || "CHƯA ĐẶT MÔN"}
             </Typography.Text>
-            <Typography.Title level={3} style={{ margin: 0, color: "var(--ai-ink)" }}>
+            <Typography.Title
+              level={3}
+              style={{ margin: 0, color: "var(--ai-ink)" }}
+            >
               {course?.title}
             </Typography.Title>
           </div>
         </div>
         <div className="flex gap-2">
           <Button icon={<ReloadOutlined />} onClick={load} loading={loading} />
-          <Upload accept=".pptx" showUploadList={false} customRequest={upload} disabled={uploading}>
-            <Button type="primary" icon={<InboxOutlined />} loading={uploading}>
-              Tải PPTX lên
-            </Button>
-          </Upload>
+          <Space size={8}>
+            <Upload
+              accept=".pptx"
+              showUploadList={false}
+              customRequest={uploadHandler(api.uploadPptx)}
+              disabled={uploading}
+            >
+              <Button
+                type="primary"
+                danger
+                icon={<InboxOutlined />}
+                loading={uploading}
+              >
+                Tải file .pptx lên
+              </Button>
+            </Upload>
+            <Upload
+              accept=".pdf"
+              showUploadList={false}
+              customRequest={uploadHandler(api.uploadPdf)}
+              disabled={uploading}
+            >
+              <Button
+                type="primary"
+                danger
+                icon={<InboxOutlined />}
+                loading={uploading}
+              >
+                Tải file .pdf lên
+              </Button>
+            </Upload>
+          </Space>
         </div>
       </div>
 
@@ -287,29 +353,60 @@ export default function CourseDetailPage() {
                   <BentoCard span={6} tone="navy">
                     <div className="flex flex-wrap items-center justify-between gap-4 py-2">
                       <div>
-                        <div className="text-xl font-extrabold">Khoá học chưa có slide</div>
-                        <div className="text-sm font-semibold" style={{ opacity: 0.78 }}>
-                          Tải file .pptx lên, hệ thống đọc thành từng trang vẽ trên canvas.
+                        <div className="text-xl font-extrabold">
+                          Khoá học chưa có slide
+                        </div>
+                        <div
+                          className="text-sm font-semibold"
+                          style={{ opacity: 0.78 }}
+                        >
+                          Tải file .pptx lên, hệ thống đọc thành từng trang vẽ
+                          trên canvas.
                         </div>
                       </div>
-                      <Upload accept=".pptx" showUploadList={false} customRequest={upload}>
-                        <Button
-                          type="primary"
-                          danger
-                          size="large"
-                          icon={<InboxOutlined />}
-                          loading={uploading}
+                      <Space size={8}>
+                        <Upload
+                          accept=".pptx"
+                          showUploadList={false}
+                          customRequest={uploadHandler(api.uploadPptx)}
                         >
-                          Tải file .pptx lên
-                        </Button>
-                      </Upload>
+                          <Button
+                            type="primary"
+                            danger
+                            size="large"
+                            icon={<InboxOutlined />}
+                            loading={uploading}
+                          >
+                            Tải file .pptx lên
+                          </Button>
+                        </Upload>
+                        <Upload
+                          accept=".pdf"
+                          showUploadList={false}
+                          customRequest={uploadHandler(api.uploadPdf)}
+                        >
+                          <Button
+                            type="primary"
+                            danger
+                            size="large"
+                            icon={<InboxOutlined />}
+                            loading={uploading}
+                          >
+                            Tải file .pdf lên
+                          </Button>
+                        </Upload>
+                      </Space>
                     </div>
                   </BentoCard>
                 </BentoGrid>
               ) : (
                 <BentoGrid>
                   {/* số liệu nội dung */}
-                  <BentoStat label="Slide" value={slides.length} icon={<FileTextOutlined />} />
+                  <BentoStat
+                    label="Slide"
+                    value={slides.length}
+                    icon={<FileTextOutlined />}
+                  />
                   <BentoStat
                     label="Bộ câu hỏi"
                     value={checkpoints.length}
@@ -326,11 +423,16 @@ export default function CourseDetailPage() {
                   {emptyCheckpoints.length > 0 ? (
                     <BentoCard span={6} tone="red" title="Bộ câu hỏi chưa soạn">
                       <div className="flex items-start gap-2 text-sm font-semibold">
-                        <WarningFilled style={{ color: "var(--ai-red)", marginTop: 3 }} />
+                        <WarningFilled
+                          style={{ color: "var(--ai-red)", marginTop: 3 }}
+                        />
                         <span>
                           Slide{" "}
-                          {emptyCheckpoints.map((c) => c.slide_index + 1).join(", ")} chưa có câu
-                          hỏi soạn sẵn — hệ thống sẽ tự sinh khi giảng viên chuyển slide.
+                          {emptyCheckpoints
+                            .map((c) => c.slide_index + 1)
+                            .join(", ")}{" "}
+                          có checkpoint nhưng chưa có câu hỏi — khi dạy sẽ không
+                          mở được gì.
                         </span>
                       </div>
                     </BentoCard>
@@ -355,7 +457,9 @@ export default function CourseDetailPage() {
                             <span
                               className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-xs font-extrabold tabular-nums"
                               style={{
-                                background: on ? "rgba(255,255,255,.18)" : "var(--ai-bg)",
+                                background: on
+                                  ? "rgba(255,255,255,.18)"
+                                  : "var(--ai-bg)",
                                 color: on ? "#fff" : "var(--ai-muted)",
                               }}
                             >
@@ -368,7 +472,9 @@ export default function CourseDetailPage() {
                               <span
                                 className="shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-extrabold"
                                 style={{
-                                  background: cp.active ? "var(--ai-red)" : "var(--ai-line)",
+                                  background: cp.active
+                                    ? "var(--ai-red)"
+                                    : "var(--ai-line)",
                                   color: cp.active ? "#fff" : "var(--ai-muted)",
                                 }}
                                 title={
@@ -389,11 +495,20 @@ export default function CourseDetailPage() {
                   {/* xem trước slide */}
                   <BentoCard
                     span={4}
-                    title={slide ? `Xem trước · slide ${slide.index + 1}` : "Xem trước"}
+                    title={
+                      slide
+                        ? `Xem trước · slide ${slide.index + 1}`
+                        : "Xem trước"
+                    }
                   >
-                    {slide ? <SlideCanvas slide={slide} total={slides.length} /> : null}
+                    {slide ? (
+                      <SlideCanvas slide={slide} total={slides.length} />
+                    ) : null}
                     {slide?.notes ? (
-                      <p className="m-0 text-xs font-semibold" style={{ color: "var(--ai-muted)" }}>
+                      <p
+                        className="m-0 text-xs font-semibold"
+                        style={{ color: "var(--ai-muted)" }}
+                      >
                         <strong>Ghi chú của bạn:</strong> {slide.notes}
                       </p>
                     ) : null}
@@ -404,17 +519,47 @@ export default function CourseDetailPage() {
                     span={6}
                     tone={checkpoint?.active ? "red" : "plain"}
                     title={
-                      slide ? `Câu hỏi tại slide ${slide.index + 1}` : "Bộ câu hỏi"
+                      slide
+                        ? `Checkpoint tại slide ${slide.index + 1}`
+                        : "Checkpoint"
+                    }
+                    extra={
+                      checkpoint ? (
+                        <div className="flex items-center gap-2">
+                          <Tooltip title="Tắt thì câu hỏi không mở được khi đang dạy">
+                            <Switch
+                              size="small"
+                              checked={checkpoint.active}
+                              onChange={(v) => toggleCheckpoint(checkpoint, v)}
+                            />
+                          </Tooltip>
+                          <Button
+                            type="text"
+                            danger
+                            size="small"
+                            icon={<DeleteOutlined />}
+                            onClick={() => removeCheckpoint(checkpoint)}
+                            aria-label="Xoá checkpoint"
+                          />
+                        </div>
+                      ) : null
                     }
                   >
                     {!checkpoint ? (
                       <div className="flex flex-wrap items-center justify-between gap-3 py-2">
-                        <span className="text-sm font-semibold" style={{ color: "var(--ai-muted)" }}>
-                          Không cần cắm cờ. Khi giảng viên chuyển sang slide này, hệ thống sẽ tự
-                          tạo và xổ 1–2 câu hỏi từ nội dung slide.
+                        <span
+                          className="text-sm font-semibold"
+                          style={{ color: "var(--ai-muted)" }}
+                        >
+                          Slide này chưa có checkpoint. Đặt một cái nếu đây là
+                          chỗ dễ hiểu sai.
                         </span>
-                        <Button type="primary" icon={<QuestionCircleOutlined />} onClick={addCheckpoint}>
-                          Chuẩn bị câu hỏi trước
+                        <Button
+                          type="primary"
+                          icon={<FlagOutlined />}
+                          onClick={addCheckpoint}
+                        >
+                          Đặt checkpoint tại đây
                         </Button>
                       </div>
                     ) : (
@@ -422,9 +567,9 @@ export default function CourseDetailPage() {
                         <div className="min-w-0">
                           {checkpoint.questions.length === 0 ? (
                             <Alert
-                              type="info"
+                              type="warning"
                               showIcon
-                              title="Hệ thống sẽ tự sinh 1–2 câu khi chuyển đến slide này."
+                              title="Checkpoint chưa có câu hỏi nào."
                             />
                           ) : (
                             <ul className="m-0 list-none space-y-2 p-0">
@@ -436,16 +581,26 @@ export default function CourseDetailPage() {
                                 >
                                   <span
                                     className="grid h-6 w-6 shrink-0 place-items-center rounded-lg text-[11px] font-extrabold"
-                                    style={{ background: "var(--ai-navy-surface)", color: "#fff" }}
+                                    style={{
+                                      background: "var(--ai-navy)",
+                                      color: "#fff",
+                                    }}
                                   >
                                     {i + 1}
                                   </span>
                                   <div className="min-w-0 flex-1">
-                                    <div className="text-sm font-bold">{q.prompt}</div>
+                                    <div className="text-sm font-bold">
+                                      {q.prompt}
+                                    </div>
                                     <div className="mt-1 flex flex-wrap gap-1">
-                                      <Tag style={{ marginInlineEnd: 0 }}>{typeLabel(q.type)}</Tag>
+                                      <Tag style={{ marginInlineEnd: 0 }}>
+                                        {typeLabel(q.type)}
+                                      </Tag>
                                       {q.origin === "llm" ? (
-                                        <Tag color="purple" style={{ marginInlineEnd: 0 }}>
+                                        <Tag
+                                          color="purple"
+                                          style={{ marginInlineEnd: 0 }}
+                                        >
                                           nháp AI
                                         </Tag>
                                       ) : null}
@@ -467,11 +622,15 @@ export default function CourseDetailPage() {
 
                         <div className="space-y-3">
                           <div>
-                            <div className="bento-label mb-1">Mục tiêu kiểm tra</div>
+                            <div className="bento-label mb-1">
+                              Mục tiêu kiểm tra
+                            </div>
                             <Typography.Paragraph
                               editable={{
                                 onChange: async (v) => {
-                                  await api.updateCheckpoint(checkpoint.id, { goal: v });
+                                  await api.updateCheckpoint(checkpoint.id, {
+                                    goal: v,
+                                  });
                                   await load();
                                 },
                               }}
@@ -481,7 +640,12 @@ export default function CourseDetailPage() {
                               {checkpoint.goal || "Bấm để ghi mục tiêu"}
                             </Typography.Paragraph>
                           </div>
-                          <Button block type="primary" icon={<PlusOutlined />} onClick={() => setQOpen(true)}>
+                          <Button
+                            block
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            onClick={() => setQOpen(true)}
+                          >
                             Thêm câu hỏi
                           </Button>
                           <Button
@@ -518,7 +682,12 @@ export default function CourseDetailPage() {
         width={640}
         destroyOnHidden
       >
-        <Form form={qForm} layout="vertical" requiredMark={false} preserve={false}>
+        <Form
+          form={qForm}
+          layout="vertical"
+          requiredMark={false}
+          preserve={false}
+        >
           <QuestionForm form={qForm} />
         </Form>
       </Modal>
@@ -542,7 +711,8 @@ function QualityTab({ quality }: { quality: CourseQuality | null }) {
   const answered = quality.slides.reduce((n, s) => n + s.answers, 0);
   const graded = quality.slides.filter((s) => s.answers > 0);
   const overall = graded.length
-    ? graded.reduce((sum, s) => sum + s.correct_rate * s.answers, 0) / (answered || 1)
+    ? graded.reduce((sum, s) => sum + s.correct_rate * s.answers, 0) /
+      (answered || 1)
     : 0;
 
   return (
@@ -580,16 +750,23 @@ function QualityTab({ quality }: { quality: CourseQuality | null }) {
         ) : (
           <ul className="m-0 list-none space-y-1.5 p-0">
             {quality.needs_attention.slice(0, 4).map((s) => (
-              <li key={s.slide_index} className="flex items-center gap-2 text-xs font-bold">
+              <li
+                key={s.slide_index}
+                className="flex items-center gap-2 text-xs font-bold"
+              >
                 <span
                   className="grid h-5 w-5 shrink-0 place-items-center rounded-md text-[10px] font-extrabold"
                   style={{ background: "var(--ai-red)", color: "#fff" }}
                 >
                   {s.slide_index + 1}
                 </span>
-                <span className="min-w-0 flex-1 truncate">{s.title || "(không tiêu đề)"}</span>
+                <span className="min-w-0 flex-1 truncate">
+                  {s.title || "(không tiêu đề)"}
+                </span>
                 {s.answers ? (
-                  <span style={{ color: "var(--ai-red)" }}>{pct(s.correct_rate)}</span>
+                  <span style={{ color: "var(--ai-red)" }}>
+                    {pct(s.correct_rate)}
+                  </span>
                 ) : (
                   <span style={{ color: "var(--ai-muted)" }}>
                     {s.return_visits} lần quay lại
@@ -610,7 +787,12 @@ function QualityTab({ quality }: { quality: CourseQuality | null }) {
             size="small"
             scroll={{ x: 860 }}
             columns={[
-              { title: "#", dataIndex: "slide_index", width: 56, render: (v: number) => v + 1 },
+              {
+                title: "#",
+                dataIndex: "slide_index",
+                width: 56,
+                render: (v: number) => v + 1,
+              },
               { title: "Tiêu đề", dataIndex: "title", ellipsis: true },
               {
                 title: "Checkpoint",
@@ -623,7 +805,12 @@ function QualityTab({ quality }: { quality: CourseQuality | null }) {
                     <Typography.Text type="secondary">—</Typography.Text>
                   ),
               },
-              { title: "Trả lời", dataIndex: "answers", width: 80, align: "right" },
+              {
+                title: "Trả lời",
+                dataIndex: "answers",
+                width: 80,
+                align: "right",
+              },
               {
                 title: "Đúng",
                 dataIndex: "correct_rate",
@@ -642,7 +829,12 @@ function QualityTab({ quality }: { quality: CourseQuality | null }) {
                 align: "right",
                 render: (v: number, r) => (r.answers ? pct(v) : "—"),
               },
-              { title: "Quay lại", dataIndex: "return_visits", width: 92, align: "right" },
+              {
+                title: "Quay lại",
+                dataIndex: "return_visits",
+                width: 92,
+                align: "right",
+              },
               {
                 title: "Hỏi / gợi ý",
                 key: "asks",
