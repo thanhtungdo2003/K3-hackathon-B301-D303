@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from ..db import get_db
 from ..models import Advice, Answer, Course, LearningEvent, Participant, Room, Session, Slide, StudentHint, User
+from ..modules.session_understanding import build_session_summary
 from ..security import current_user
 
 router = APIRouter(prefix="/insights", tags=["insights"])
@@ -72,6 +73,18 @@ def overview(db: DbSession = Depends(get_db), user: User = Depends(current_user)
     alerts = [a for a in advices if a.should_alert]
     dismissed = [a for a in alerts if a.feedback == "dismissed"]
     thumbs_up = [a for a in alerts if a.feedback == "up"]
+    latest_completed = next(
+        (
+            session
+            for session in sorted(
+                session_rows,
+                key=lambda row: row.ended_at or row.started_at,
+                reverse=True,
+            )
+            if session.ended_at is not None
+        ),
+        None,
+    )
 
     return {
         "courses": len(course_ids),
@@ -85,6 +98,11 @@ def overview(db: DbSession = Depends(get_db), user: User = Depends(current_user)
         "skip_rate": _rate(len([a for a in answers if a.skipped]), len(answers)),
         "questions_asked": questions_asked,
         "hints_requested": hints,
+        "latest_session_summary": (
+            build_session_summary(db, latest_completed)
+            if latest_completed is not None
+            else None
+        ),
         "advisor": {
             "total": len(advices),
             "alerts": len(alerts),

@@ -239,6 +239,67 @@ class AutoQuestionAndSupportTests(unittest.TestCase):
         self.assertEqual(answer.json()["answered_by"], "lecturer")
         self.assertIsNone(answer.json()["answer_disclaimer"])
 
+    def test_lecturer_assigns_question_and_assistant_answer_syncs_everyone(self) -> None:
+        with self.Session() as db:
+            question = SupportQuestion(
+                session_id=self.session_id,
+                participant_id=self.participant_id,
+                slide_index=1,
+                text="Em chưa hiểu ví dụ này.",
+                confusion_score=0.6,
+                escalated=True,
+            )
+            db.add(question)
+            db.flush()
+            db.add(
+                LearningEvent(
+                    session_id=self.session_id,
+                    participant_id=self.participant_id,
+                    slide_index=1,
+                    type="ask_question",
+                    payload={
+                        "text": question.text,
+                        "support_question_id": question.id,
+                    },
+                )
+            )
+            db.commit()
+            question_id = question.id
+
+        with patch("app.realtime.to_teaching_team", new=AsyncMock()) as team_emit:
+            assigned = self.client.post(
+                f"/teaching/sessions/{self.session_id}/support-questions/"
+                f"{question_id}/assign-assistant"
+            )
+        self.assertEqual(assigned.status_code, 200, assigned.text)
+        self.assertTrue(assigned.json()["assigned_to_assistant"])
+        self.assertEqual(team_emit.await_args.args[1], "support_assigned")
+
+        dashboard = self.client.get(
+            f"/teaching-assistant/sessions/{self.session_id}/dashboard"
+        )
+        self.assertEqual(dashboard.status_code, 200, dashboard.text)
+        assigned_item = next(
+            item
+            for item in dashboard.json()["support_queue"]
+            if item["question_id"] == question_id
+        )
+        self.assertTrue(assigned_item["assigned_to_assistant"])
+
+        with (
+            patch("app.realtime.sio.emit", new=AsyncMock()) as student_emit,
+            patch("app.realtime.to_teaching_team", new=AsyncMock()) as team_emit,
+        ):
+            answered = self.client.post(
+                f"/teaching/sessions/{self.session_id}/support-questions/"
+                f"{question_id}/answer",
+                json={"text": "Trợ giảng giải thích câu này.", "answered_by": "assistant"},
+            )
+        self.assertEqual(answered.status_code, 200, answered.text)
+        self.assertEqual(answered.json()["answered_by"], "assistant")
+        student_emit.assert_awaited_once()
+        self.assertEqual(team_emit.await_args.args[1], "support_answered")
+
     def test_overflow_question_gets_ai_answer_and_disclaimer(self) -> None:
         with self.Session() as db:
             db.add_all(

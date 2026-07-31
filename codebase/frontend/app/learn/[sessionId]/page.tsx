@@ -624,10 +624,19 @@ export default function LearnPage() {
   /* ------------------------------------------------------------------ hành vi */
 
   const sendEvent = useCallback(
-    (type: string, payload: Record<string, unknown> = {}) => {
+    (
+      type: string,
+      payload: Record<string, unknown> = {},
+      slideIndex = index,
+    ) => {
       if (!profile) return;
       api
-        .recordEvent(sessionId, { token: profile.token, type, slide_index: index, payload })
+        .recordEvent(sessionId, {
+          token: profile.token,
+          type,
+          slide_index: slideIndex,
+          payload,
+        })
         .catch(() => { });
     },
     [profile, sessionId, index],
@@ -636,7 +645,9 @@ export default function LearnPage() {
   function go(delta: number) {
     const next = Math.max(0, Math.min(slides.length - 1, index + delta));
     if (next === index) return;
-    if (delta < 0) sendEvent("return_slide");
+    if (delta < 0) {
+      sendEvent("return_slide", { from_slide_index: index }, next);
+    }
     setAiOpen(false);
     setAiMessages([]);
     setAiSummary("");

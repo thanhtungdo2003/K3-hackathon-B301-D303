@@ -79,6 +79,31 @@ class AssistantAggregateTests(unittest.TestCase):
         self.assertEqual(pulse["needs_follow_up"]["count"], 1)
         self.assertEqual(pulse["unclassified"]["count"], 1)
 
+    def test_returning_to_an_earlier_slide_flags_temporary_understanding(self) -> None:
+        participants = [participant(1)]
+        events = [
+            LearningEvent(
+                session_id=1,
+                participant_id=1,
+                slide_index=1,
+                type="return_slide",
+                payload={"from_slide_index": 3},
+                created_at=NOW,
+            )
+        ]
+
+        pulse = _pulse(
+            participants,
+            [],
+            events,
+            [],
+            current_slide_index=3,
+            now=NOW,
+        )
+
+        self.assertEqual(pulse["needs_follow_up"]["count"], 1)
+        self.assertEqual(pulse["struggling"]["count"], 0)
+
     def test_support_queue_does_not_expose_identity(self) -> None:
         event = LearningEvent(
             id=7,

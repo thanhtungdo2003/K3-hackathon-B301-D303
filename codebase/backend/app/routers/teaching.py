@@ -26,6 +26,7 @@ from ..schemas import (
     QuestionOut,
     SlideChangeRequest,
     SupportAnswerRequest,
+    SupportAssignmentOut,
     SupportQuestionOut,
     TriggerQuestionRequest,
 )
@@ -33,6 +34,7 @@ from ..security import current_user
 
 router = APIRouter(prefix="/teaching/sessions", tags=["teaching"])
 AUTO_QUESTIONS_PRESENTED_EVENT = "auto_questions_presented"
+SUPPORT_ASSIGNED_EVENT = "support_assigned_assistant"
 
 
 def _owned_session(db: DbSession, session_id: int, user: User) -> Session:
@@ -46,6 +48,23 @@ def _slide(db: DbSession, session: Session, index: int) -> Slide | None:
     return db.scalar(
         select(Slide).where(Slide.course_id == session.room.course_id, Slide.index == index)
     )
+
+
+def _assistant_assignments(
+    db: DbSession, session_id: int
+) -> dict[int, LearningEvent]:
+    events = db.scalars(
+        select(LearningEvent).where(
+            LearningEvent.session_id == session_id,
+            LearningEvent.type == SUPPORT_ASSIGNED_EVENT,
+        )
+    ).all()
+    assignments: dict[int, LearningEvent] = {}
+    for event in events:
+        question_id = event.payload.get("support_question_id")
+        if isinstance(question_id, int):
+            assignments[question_id] = event
+    return assignments
 
 
 def _slide_title(db: DbSession, session: Session, index: int) -> str:
@@ -224,6 +243,7 @@ def dashboard(
         .order_by(SupportQuestion.created_at.desc())
         .limit(8)
     ).all()
+    assistant_assignments = _assistant_assignments(db, session_id)
     question_results = None
     if session.current_question_id is not None:
         current_answers = db.scalars(
@@ -271,6 +291,12 @@ def dashboard(
                 "answer_text": question.answer_text,
                 "answered_by": question.answered_by,
                 "answer_disclaimer": question.answer_disclaimer,
+                "assigned_to_assistant": question.id in assistant_assignments,
+                "assigned_at": (
+                    assistant_assignments[question.id].created_at.isoformat()
+                    if question.id in assistant_assignments
+                    else None
+                ),
                 "at": question.created_at.isoformat(),
             }
             for question in questions
@@ -291,6 +317,46 @@ def dashboard(
             else None
         ),
     }
+
+
+@router.post(
+    "/{session_id}/support-questions/{question_id}/assign-assistant",
+    response_model=SupportAssignmentOut,
+)
+async def assign_support_question_to_assistant(
+    session_id: int,
+    question_id: int,
+    db: DbSession = Depends(get_db),
+    user: User = Depends(current_user),
+) -> dict:
+    _owned_session(db, session_id, user)
+    question = db.get(SupportQuestion, question_id)
+    if question is None or question.session_id != session_id:
+        raise HTTPException(status_code=404, detail="Không tìm thấy câu hỏi hỗ trợ.")
+    if question.status != "pending":
+        raise HTTPException(status_code=409, detail="Câu hỏi này đã được trả lời.")
+
+    assignment = _assistant_assignments(db, session_id).get(question_id)
+    if assignment is None:
+        assignment = LearningEvent(
+            session_id=session_id,
+            participant_id=question.participant_id,
+            slide_index=question.slide_index,
+            type=SUPPORT_ASSIGNED_EVENT,
+            payload={"support_question_id": question.id},
+        )
+        db.add(assignment)
+        db.commit()
+        db.refresh(assignment)
+
+    event_payload = {
+        "session_id": session_id,
+        "question_id": question.id,
+        "assigned_to_assistant": True,
+        "assigned_at": assignment.created_at.isoformat(),
+    }
+    await realtime.to_teaching_team(session_id, "support_assigned", event_payload)
+    return event_payload
 
 
 @router.post(
@@ -323,6 +389,17 @@ async def answer_support_question(
             "answer_disclaimer": None,
         },
         room=realtime.participant_room(question.participant_id),
+    )
+    await realtime.to_teaching_team(
+        session_id,
+        "support_answered",
+        {
+            "session_id": session_id,
+            "id": question.id,
+            "answer_text": question.answer_text,
+            "answered_by": question.answered_by,
+            "answer_disclaimer": None,
+        },
     )
     return question
 

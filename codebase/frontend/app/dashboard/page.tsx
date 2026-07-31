@@ -13,6 +13,7 @@ import {
   RightOutlined,
   TeamOutlined,
   ThunderboltOutlined,
+  WarningOutlined,
 } from "@ant-design/icons";
 import { Alert, Button, Empty, Tag, Typography } from "antd";
 import Link from "next/link";
@@ -182,6 +183,100 @@ export default function AiDashboard() {
             icon={<MessageOutlined />}
             span={2}
           />
+
+          <BentoCard
+            span={6}
+            title="Tổng quan buổi học gần nhất"
+            extra={
+              overview?.latest_session_summary ? (
+                <Tag>{overview.latest_session_summary.rule_version}</Tag>
+              ) : null
+            }
+          >
+            {overview?.latest_session_summary ? (
+              <>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-base font-extrabold">
+                      {overview.latest_session_summary.session.title}
+                    </div>
+                    <div className="text-xs font-semibold" style={{ color: "var(--ai-muted)" }}>
+                      {overview.latest_session_summary.session.course_title} ·{" "}
+                      {overview.latest_session_summary.classified_students}/
+                      {overview.latest_session_summary.total_students} học viên đủ tín hiệu
+                    </div>
+                  </div>
+                  <Tag color="blue">
+                    độ phủ {pct(overview.latest_session_summary.coverage_rate)}
+                  </Tag>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {[
+                    {
+                      label: "Hiểu bài",
+                      value: overview.latest_session_summary.understood,
+                      color: "#18A66A",
+                    },
+                    {
+                      label: "Tạm hiểu",
+                      value: overview.latest_session_summary.temporary,
+                      color: "#E69A17",
+                    },
+                    {
+                      label: "Chưa hiểu",
+                      value: overview.latest_session_summary.not_understood,
+                      color: "#E5484D",
+                    },
+                  ].map((item) => (
+                    <div
+                      key={item.label}
+                      className="rounded-xl border p-3"
+                      style={{
+                        borderColor: "var(--ai-line)",
+                        borderTop: `3px solid ${item.color}`,
+                        background: "var(--ai-bg)",
+                      }}
+                    >
+                      <div className="text-xs font-bold" style={{ color: "var(--ai-muted)" }}>
+                        {item.label}
+                      </div>
+                      <div className="text-2xl font-extrabold" style={{ color: item.color }}>
+                        {pct(item.value.rate)}
+                      </div>
+                      <div className="text-xs font-semibold">{item.value.count} học viên</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3">
+                  <div className="mb-2 text-sm font-extrabold">
+                    <WarningOutlined style={{ color: "#E5484D" }} /> Nội dung cần xem lại
+                  </div>
+                  {overview.latest_session_summary.unclear_topics.length ? (
+                    <div className="flex flex-wrap gap-2">
+                      {overview.latest_session_summary.unclear_topics.map((topic) => (
+                        <Tag
+                          key={topic.slide_index}
+                          color={topic.status === "red" ? "red" : "gold"}
+                        >
+                          Slide {topic.slide_index + 1}: {topic.title}
+                        </Tag>
+                      ))}
+                    </div>
+                  ) : (
+                    <Typography.Text style={{ color: "var(--ai-muted)", fontSize: 13 }}>
+                      Chưa ghi nhận nội dung nào cần ôn lại.
+                    </Typography.Text>
+                  )}
+                </div>
+              </>
+            ) : (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="Chưa có buổi học đã kết thúc để tổng hợp"
+                style={{ margin: "8px 0" }}
+              />
+            )}
+          </BentoCard>
 
           {/* lối đi nhanh */}
           <BentoCard span={4} title="Đi tới">
