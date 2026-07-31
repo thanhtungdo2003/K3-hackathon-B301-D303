@@ -43,8 +43,13 @@ def classify(text: str, slide_title: str, slide_text: str) -> Classification:
     return Classification(score=score, source="rule_fallback")
 
 
-def answer(text: str, slide_title: str, slide_text: str) -> str:
-    raw = llm.answer_student_question(text, slide_title, slide_text)
+def answer(
+    text: str,
+    slide_title: str,
+    slide_text: str,
+    lesson_text: str = "",
+) -> str:
+    raw = llm.answer_student_question(text, slide_title, slide_text, lesson_text)
     if raw and str(raw.get("answer", "")).strip():
         return str(raw["answer"]).strip()[:2000]
     return (
