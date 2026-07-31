@@ -112,6 +112,8 @@ export interface SlideOut {
   source: string;
   checkpoint_id: number | null;
   question_count: number;
+  /** Ảnh trang PDF gốc (đường dẫn tương đối trên backend). Null thì vẽ từ `blocks`. */
+  page_image_url?: string | null;
 }
 
 export type QuestionType =
