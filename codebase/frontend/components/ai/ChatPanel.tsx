@@ -154,7 +154,7 @@ export default function ChatPanel({ onChanged, onOpenChange }: { onChanged?: () 
       {/* đầu thanh chat */}
       <header
         className="flex shrink-0 items-center gap-3 px-4 py-3"
-        style={{ background: "var(--ai-navy)", color: "#fff" }}
+        style={{ background: "var(--ai-navy-surface)", color: "#fff" }}
       >
         <span
           className="grid h-9 w-9 shrink-0 place-items-center rounded-xl"
@@ -166,7 +166,7 @@ export default function ChatPanel({ onChanged, onOpenChange }: { onChanged?: () 
           <div className="text-sm font-extrabold">Trợ lý dựng lớp</div>
           <div className="truncate text-xs" style={{ color: "rgba(255,255,255,.7)" }}>
             {status?.available
-              ? `${status.model} · ${status.tools.length} công cụ`
+              ? `${status.tools.length} công cụ`
               : "chưa cấu hình khoá"}
           </div>
         </div>
@@ -226,7 +226,7 @@ export default function ChatPanel({ onChanged, onOpenChange }: { onChanged?: () 
             <div key={i} className="flex justify-end gap-2">
               <div
                 className="max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm font-semibold"
-                style={{ background: "var(--ai-navy)", color: "#fff", borderBottomRightRadius: 6 }}
+                style={{ background: "var(--ai-navy-surface)", color: "#fff", borderBottomRightRadius: 6 }}
               >
                 {t.content}
               </div>
@@ -241,7 +241,7 @@ export default function ChatPanel({ onChanged, onOpenChange }: { onChanged?: () 
             <div key={i} className="flex gap-2">
               <span
                 className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg"
-                style={{ background: "var(--ai-navy)", color: "#fff" }}
+                style={{ background: "var(--ai-navy-surface)", color: "#fff" }}
               >
                 <RobotOutlined style={{ fontSize: 13 }} />
               </span>

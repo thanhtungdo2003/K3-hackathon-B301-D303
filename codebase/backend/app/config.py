@@ -36,6 +36,8 @@ class Settings:
         # Ngưỡng dữ liệu
         self.min_responses: int = int(os.getenv("AGORA_MIN_RESPONSES", "5"))
         self.min_participation: float = float(os.getenv("AGORA_MIN_PARTICIPATION", "0.30"))
+        # Ngưỡng định tuyến câu hỏi học viên (cố định theo yêu cầu sản phẩm).
+        self.confusion_threshold: float = 0.60
 
     @property
     def ai_available(self) -> bool:
