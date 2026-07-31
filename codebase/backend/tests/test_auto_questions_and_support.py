@@ -4,13 +4,25 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, delete
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.db import Base, get_db
 from app.main import api
-from app.models import Course, Participant, Room, Session, Slide, SupportQuestion, User
+from app.models import (
+    Answer,
+    Course,
+    LearningEvent,
+    Participant,
+    Question,
+    Room,
+    Session,
+    Slide,
+    SupportQuestion,
+    User,
+)
+from app.modules import auto_questions, llm
 from app.modules.question_support import AI_DISCLAIMER, Classification
 from app.security import current_user
 
@@ -82,7 +94,23 @@ class AutoQuestionAndSupportTests(unittest.TestCase):
         Base.metadata.drop_all(cls.engine)
         cls.engine.dispose()
 
-    def test_slide_change_automatically_opens_two_slide_questions(self) -> None:
+    def setUp(self) -> None:
+        with self.Session() as db:
+            db.execute(delete(Answer).where(Answer.session_id == self.session_id))
+            db.execute(
+                delete(LearningEvent).where(LearningEvent.session_id == self.session_id)
+            )
+            db.execute(
+                delete(SupportQuestion).where(
+                    SupportQuestion.session_id == self.session_id
+                )
+            )
+            session = db.get(Session, self.session_id)
+            session.current_question_id = None
+            session.current_slide_index = 0
+            db.commit()
+
+    def test_slide_change_opens_grounded_questions_only_once(self) -> None:
         with (
             patch("app.modules.llm.draft_checkpoint_questions", return_value=None),
             patch("app.realtime.lecturer_slide_changed", new=AsyncMock()),
@@ -95,10 +123,34 @@ class AutoQuestionAndSupportTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200, response.text)
         body = response.json()
-        self.assertEqual(len(body["questions"]), 2)
+        self.assertEqual(len(body["questions"]), 1)
         self.assertTrue(body["current_question_id"])
+        self.assertTrue(body["questions_presented"])
+        self.assertIn("F = ma", body["questions"][0]["prompt"])
+        self.assertEqual(body["questions"][0]["type"], "true_false")
         events = [call.args[1] for call in broadcast.await_args_list]
         self.assertIn("questions_opened", events)
+
+        with (
+            patch("app.realtime.lecturer_slide_changed", new=AsyncMock()),
+            patch("app.realtime.broadcast", new=AsyncMock()) as revisit_broadcast,
+        ):
+            self.client.post(
+                f"/teaching/sessions/{self.session_id}/slide",
+                json={"slide_index": 0},
+            )
+            revisited = self.client.post(
+                f"/teaching/sessions/{self.session_id}/slide",
+                json={"slide_index": 1},
+            )
+
+        self.assertEqual(revisited.status_code, 200, revisited.text)
+        self.assertFalse(revisited.json()["questions_presented"])
+        self.assertIsNone(revisited.json()["current_question_id"])
+        revisit_events = [
+            call.args[1] for call in revisit_broadcast.await_args_list
+        ]
+        self.assertNotIn("questions_opened", revisit_events)
 
     def test_student_state_does_not_repeat_answered_questions(self) -> None:
         with (
@@ -112,6 +164,13 @@ class AutoQuestionAndSupportTests(unittest.TestCase):
             )
         self.assertEqual(changed.status_code, 200, changed.text)
         question_ids = [item["id"] for item in changed.json()["questions"]]
+        with self.Session() as db:
+            legacy_question = db.get(Question, question_ids[0])
+            legacy_question.answer = {
+                "value": "0",
+                "explanation": "Nội dung này có trên slide.",
+            }
+            db.commit()
 
         with patch("app.realtime.to_lecturer", new=AsyncMock()):
             answered = self.client.post(
@@ -125,26 +184,34 @@ class AutoQuestionAndSupportTests(unittest.TestCase):
                 },
             )
         self.assertEqual(answered.status_code, 200, answered.text)
+        self.assertFalse(answered.json()["correct"])
+        self.assertEqual(answered.json()["correct_answer"], "Đúng")
 
         private_state = self.client.get(
             f"/sessions/{self.session_id}/state",
             params={"token": "student-token"},
         )
         self.assertEqual(private_state.status_code, 200, private_state.text)
-        self.assertEqual(
-            [item["id"] for item in private_state.json()["current_questions"]],
-            [question_ids[1]],
-        )
-        self.assertEqual(private_state.json()["current_question"]["id"], question_ids[1])
+        self.assertEqual(private_state.json()["current_questions"], [])
+        self.assertIsNone(private_state.json()["current_question"])
 
         public_state = self.client.get(f"/sessions/{self.session_id}/state")
-        self.assertEqual(len(public_state.json()["current_questions"]), 2)
+        self.assertEqual(len(public_state.json()["current_questions"]), 1)
 
-    def test_question_at_sixty_percent_pings_teaching_team(self) -> None:
+        dashboard = self.client.get(
+            f"/teaching/sessions/{self.session_id}/dashboard"
+        )
+        self.assertEqual(dashboard.status_code, 200, dashboard.text)
+        results = dashboard.json()["question_results"]
+        self.assertEqual(results["answered"], 1)
+        self.assertEqual(results["correct_rate"], 0.0)
+        self.assertEqual(results["wrong_rate"], 1.0)
+
+    def test_question_at_thirty_percent_pings_teaching_team(self) -> None:
         with (
             patch(
                 "app.modules.question_support.classify",
-                return_value=Classification(score=0.60, source="llm"),
+                return_value=Classification(score=0.30, source="llm"),
             ),
             patch("app.realtime.to_teaching_team", new=AsyncMock()) as ping,
         ):
@@ -159,7 +226,7 @@ class AutoQuestionAndSupportTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 201, response.text)
         self.assertTrue(response.json()["escalated"])
-        self.assertEqual(response.json()["confusion_threshold"], 0.60)
+        self.assertEqual(response.json()["confusion_threshold"], 0.30)
         ping.assert_awaited_once()
 
         with patch("app.realtime.sio.emit", new=AsyncMock()):
@@ -217,7 +284,7 @@ class AutoQuestionAndSupportTests(unittest.TestCase):
             patch("app.modules.question_support.summarize", return_value="Slide nói về F = ma."),
             patch(
                 "app.modules.question_support.classify",
-                return_value=Classification(score=0.40, source="llm"),
+                return_value=Classification(score=0.20, source="llm"),
             ),
             patch("app.modules.question_support.answer", return_value="F là lực, m là khối lượng."),
         ):
@@ -235,12 +302,43 @@ class AutoQuestionAndSupportTests(unittest.TestCase):
         self.assertEqual(response.json()["answer"], "F là lực, m là khối lượng.")
         self.assertIsNone(response.json()["support_question"])
 
+    def test_ai_support_can_answer_from_the_whole_lesson(self) -> None:
+        with (
+            patch("app.modules.question_support.summarize", return_value="Tóm tắt slide hiện tại."),
+            patch(
+                "app.modules.question_support.classify",
+                return_value=Classification(score=0.20, source="llm"),
+            ),
+            patch(
+                "app.modules.question_support.answer",
+                return_value="Hôm nay học mở đầu và định luật Newton.",
+            ) as answer,
+        ):
+            response = self.client.post(
+                f"/sessions/{self.session_id}/ai-support",
+                json={
+                    "token": "student-token",
+                    "slide_index": 1,
+                    "message": "Hôm nay học gì?",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(
+            response.json()["answer"],
+            "Hôm nay học mở đầu và định luật Newton.",
+        )
+        lesson_text = answer.call_args.args[3]
+        self.assertIn("SLIDE 1:", lesson_text)
+        self.assertIn("SLIDE 2:", lesson_text)
+        self.assertIn("F = ma", lesson_text)
+
     def test_ai_support_escalates_at_threshold(self) -> None:
         with (
             patch("app.modules.question_support.summarize", return_value="Slide nói về F = ma."),
             patch(
                 "app.modules.question_support.classify",
-                return_value=Classification(score=0.60, source="llm"),
+                return_value=Classification(score=0.30, source="llm"),
             ),
             patch("app.realtime.to_teaching_team", new=AsyncMock()),
             patch("app.realtime.sio.emit", new=AsyncMock()),
@@ -258,6 +356,50 @@ class AutoQuestionAndSupportTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assertTrue(response.json()["escalated"])
         self.assertIsNotNone(response.json()["support_question"])
+
+    def test_question_draft_normalizes_answer_and_rejects_generic_prompt(self) -> None:
+        raw = {
+            "questions": [
+                {
+                    "type": "multiple_choice",
+                    "prompt": "Theo định luật Newton, công thức nào xuất hiện trên slide?",
+                    "options": ["E = mc²", "F = ma", "P = UI"],
+                    "answer": {"value": "1"},
+                    "explanation": "Slide nêu F = ma.",
+                },
+                {
+                    "type": "poll",
+                    "prompt": "Bạn đã hiểu bài chưa?",
+                    "options": ["Rồi", "Chưa"],
+                    "answer": {},
+                },
+            ]
+        }
+        with patch("app.modules.llm._chat_json", return_value=raw):
+            drafted = llm.draft_checkpoint_questions(
+                "Định luật Newton",
+                "Định luật Newton\nF = ma",
+                "Kiểm tra công thức",
+                2,
+            )
+
+        self.assertIsNotNone(drafted)
+        self.assertEqual(len(drafted["questions"]), 1)
+        self.assertEqual(
+            drafted["questions"][0]["answer"]["value"],
+            "F = ma",
+        )
+
+        stale_generic = Question(
+            checkpoint_id=1,
+            position=0,
+            type="poll",
+            prompt="Bạn đã nắm được ý chính đến mức nào?",
+            options=["Đã hiểu", "Chưa hiểu"],
+            answer={},
+            origin="llm",
+        )
+        self.assertFalse(auto_questions.is_meaningful(stale_generic))
 
 
 if __name__ == "__main__":

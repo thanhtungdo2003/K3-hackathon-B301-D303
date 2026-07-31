@@ -54,7 +54,6 @@ export default function AiDashboard() {
   const empty = overview !== null && overview.courses === 0;
 
   return (
-    <>
     <div
       className={`grid min-h-0 gap-4 ${chatOpen ? "xl:grid-cols-[1fr_380px]" : "xl:grid-cols-1"}`}
       style={{ transition: "grid-template-columns 0.3s cubic-bezier(.4,0,.2,1)" }}
@@ -283,17 +282,17 @@ export default function AiDashboard() {
       </div>
 
       {/* ── cột phải: trợ lý ──────────────────────────────────────────── */}
-      {chatOpen && (
-        <div className="min-w-0 xl:sticky xl:top-4 xl:h-[calc(100vh-96px)]">
-          <div className="h-[560px] xl:h-full">
-            <ChatPanel onChanged={load} onOpenChange={setChatOpen} />
-          </div>
+      <div
+        className={
+          chatOpen
+            ? "min-w-0 xl:sticky xl:top-4 xl:h-[calc(100vh-96px)]"
+            : "contents"
+        }
+      >
+        <div className={chatOpen ? "h-[560px] xl:h-full" : "contents"}>
+          <ChatPanel open={chatOpen} onChanged={load} onOpenChange={setChatOpen} />
         </div>
-      )}
+      </div>
     </div>
-
-    {/* nút floating nằm ngoài grid — luôn cố định góc dưới phải */}
-    {!chatOpen && <ChatPanel onChanged={load} onOpenChange={setChatOpen} />}
-    </>
   );
 }

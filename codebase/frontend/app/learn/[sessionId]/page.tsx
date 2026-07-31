@@ -59,9 +59,11 @@ export default function LearnPage() {
   const [picked, setPicked] = useState<string[]>([]);
   const [ordering, setOrdering] = useState<string[]>([]);
   const [typed, setTyped] = useState("");
-  const [result, setResult] = useState<{ correct: boolean | null; explanation: string | null } | null>(
-    null,
-  );
+  const [result, setResult] = useState<{
+    correct: boolean | null;
+    explanation: string | null;
+    correctAnswer: string | null;
+  } | null>(null);
   const [handRaised, setHandRaised] = useState(false);
   const [hints, setHints] = useState<{ id: number; questions: string[] } | null>(null);
   const [hintBusy, setHintBusy] = useState(false);
@@ -766,7 +768,7 @@ export default function LearnPage() {
     if (questionAdvanceTimer.current !== null) {
       window.clearTimeout(questionAdvanceTimer.current);
     }
-    questionAdvanceTimer.current = window.setTimeout(finishCurrentQuestion, 900);
+    questionAdvanceTimer.current = window.setTimeout(finishCurrentQuestion, 3500);
   }
 
   const multi = question?.type === "multiple_select";
@@ -813,7 +815,11 @@ export default function LearnPage() {
       response_ms: Date.now() - openedAt.current,
       confidence,
     });
-    setResult({ correct: res.correct, explanation: res.explanation });
+    setResult({
+      correct: res.correct,
+      explanation: res.explanation,
+      correctAnswer: res.correct_answer,
+    });
     scheduleQuestionClose();
   }
 
@@ -827,7 +833,7 @@ export default function LearnPage() {
       skipped: true,
       confidence: 1,
     });
-    setResult({ correct: null, explanation: null });
+    setResult({ correct: null, explanation: null, correctAnswer: null });
     scheduleQuestionClose();
   }
 
@@ -1084,8 +1090,13 @@ export default function LearnPage() {
                         ? "Chưa đúng — nghe giảng viên chốt lại nhé."
                         : result.correct === null
                           ? "Đã ghi nhận."
-                          : "Đã bỏ qua.")}
+                        : "Đã bỏ qua.")}
                 </p>
+                {result.correct === false && result.correctAnswer ? (
+                  <p className="mt-1 text-sm font-extrabold text-grass">
+                    Đáp án đúng: {result.correctAnswer}
+                  </p>
+                ) : null}
               </div>
             ) : (
               <>
@@ -1227,7 +1238,7 @@ export default function LearnPage() {
 
           {aiTab === "ai" ? (
             <>
-              <div className="ai-help-panel__scope"><Icon.shield aria-hidden size={18} /> AI chỉ trả lời dựa trên nội dung bài giảng hiện tại.</div>
+              <div className="ai-help-panel__scope"><Icon.shield aria-hidden size={18} /> AI trả lời dựa trên toàn bộ bộ slide và ưu tiên slide hiện tại.</div>
               {aiSummary ? <div className="ai-help-panel__summary"><span>Tóm tắt slide</span><p>{aiSummary}</p></div> : null}
               <div className="ai-help-panel__messages">
                 {aiMessages.map((message, messageIndex) => (
@@ -1296,7 +1307,13 @@ export default function LearnPage() {
           {result ? (
             <div className={`flex items-start gap-3 rounded-blk border-2 px-4 py-3 ${result.correct === true ? "border-grass-deep bg-grass/10" : result.correct === false ? "border-cherry-deep bg-cherry/10" : "border-line bg-sunken"}`}>
               <ResultIcon aria-hidden size={22} className={result.correct === true ? "text-grass" : result.correct === false ? "text-cherry" : "text-muted"} />
-              <div><p className="text-sm font-bold">{result.explanation ?? (result.correct === true ? "Chính xác." : result.correct === false ? "Chưa đúng — nghe giảng viên chốt lại nhé." : "Đã ghi nhận.")}</p><small className="text-muted">Câu hỏi sẽ tự đóng…</small></div>
+              <div>
+                <p className="text-sm font-bold">{result.explanation ?? (result.correct === true ? "Chính xác." : result.correct === false ? "Chưa đúng — nghe giảng viên chốt lại nhé." : "Đã ghi nhận.")}</p>
+                {result.correct === false && result.correctAnswer ? (
+                  <p className="mt-1 text-sm font-extrabold text-grass">Đáp án đúng: {result.correctAnswer}</p>
+                ) : null}
+                <small className="text-muted">Câu hỏi sẽ tự đóng…</small>
+              </div>
             </div>
           ) : (
             <>
