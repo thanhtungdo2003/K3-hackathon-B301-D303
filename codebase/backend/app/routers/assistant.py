@@ -10,7 +10,17 @@ from sqlalchemy.orm import Session as DbSession
 from .. import realtime
 from ..config import get_settings
 from ..db import get_db
-from ..models import Advice, Answer, LearningEvent, Participant, Session, Slide, StudentHint, User
+from ..models import (
+    Advice,
+    Answer,
+    LearningEvent,
+    Participant,
+    Session,
+    Slide,
+    StudentHint,
+    SupportQuestion,
+    User,
+)
 from ..modules import analytics, state_engine
 from ..schemas import AssistantDashboardOut, SlideTrackingAggregateOut
 from ..security import current_user
@@ -175,8 +185,13 @@ def _concepts(db: DbSession, session: Session, slides: list[Slide]) -> list[dict
     return rows
 
 
-def _support_queue(events: list[LearningEvent], now: datetime) -> list[dict]:
+def _support_queue(
+    events: list[LearningEvent],
+    now: datetime,
+    support_questions: list[SupportQuestion] | None = None,
+) -> list[dict]:
     rows: list[dict] = []
+    support_by_id = {question.id: question for question in (support_questions or [])}
     for event in events:
         if event.type not in ("raise_hand", "ask_question"):
             continue
@@ -185,12 +200,21 @@ def _support_queue(events: list[LearningEvent], now: datetime) -> list[dict]:
             if event.type == "ask_question"
             else "Học viên đang giơ tay xin hỗ trợ."
         )
+        question_id = event.payload.get("support_question_id")
+        support = support_by_id.get(question_id) if isinstance(question_id, int) else None
         rows.append(
             {
                 "key": f"event-{event.id}",
                 "type": event.type,
+                "question_id": support.id if support else None,
                 "slide_index": event.slide_index,
                 "text": text,
+                "confusion_score": support.confusion_score if support else None,
+                "escalated": support.escalated if support else False,
+                "status": support.status if support else None,
+                "answer_text": support.answer_text if support else None,
+                "answered_by": support.answered_by if support else None,
+                "answer_disclaimer": support.answer_disclaimer if support else None,
                 "created_at": _aware(event.created_at),
                 "age_seconds": max(
                     0, int((now - _aware(event.created_at)).total_seconds())
@@ -261,6 +285,11 @@ def assistant_dashboard(
     hints = list(
         db.scalars(
             select(StudentHint).where(StudentHint.session_id == session_id)
+        ).all()
+    )
+    support_questions = list(
+        db.scalars(
+            select(SupportQuestion).where(SupportQuestion.session_id == session_id)
         ).all()
     )
     slides = list(
@@ -346,7 +375,7 @@ def assistant_dashboard(
                 else None
             ),
         },
-        "support_queue": _support_queue(events, now),
+        "support_queue": _support_queue(events, now, support_questions),
         "slide_sync": _tracking_aggregate(session, participants, events),
         "privacy": {
             "identity_fields_omitted": True,

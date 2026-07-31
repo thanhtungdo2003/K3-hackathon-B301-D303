@@ -132,6 +132,62 @@ def suggest_student_questions(slide_title: str, slide_text: str, signals: dict) 
     return {"questions": questions[:3], "note": str(data.get("note") or ""), "_trace_id": data.get("_trace_id")}
 
 
+CONFUSION_SYSTEM = """Bạn phân loại mức độ bối rối thể hiện trong câu hỏi của học viên.
+Chỉ dựa vào chính câu hỏi và nội dung slide. Trả JSON:
+{"confusion_score": 0.0}
+Trong đó 0 là câu hỏi thông tin đơn giản, 1 là đang mất mạch nghiêm trọng."""
+
+
+def assess_student_confusion(question: str, slide_title: str, slide_text: str) -> dict | None:
+    return _chat_json(
+        "student-confusion",
+        CONFUSION_SYSTEM,
+        "\n".join(
+            [
+                f"TIÊU ĐỀ SLIDE: {slide_title}",
+                f"NỘI DUNG SLIDE:\n{slide_text or '(không có chữ)'}",
+                f"CÂU HỎI HỌC VIÊN: {question}",
+            ]
+        ),
+        max_tokens=120,
+    )
+
+
+STUDENT_ANSWER_SYSTEM = """Bạn là trợ giảng AI trả lời câu hỏi học viên khi hàng đợi người thật quá tải.
+Chỉ dùng thông tin có trong slide. Nếu slide không đủ dữ liệu, nói rõ là chưa đủ dữ liệu và
+khuyên học viên xác nhận với giảng viên. Trả lời tiếng Việt, ngắn gọn, không bịa nguồn.
+Trả JSON đúng dạng {"answer": "..."}."""
+
+
+def answer_student_question(question: str, slide_title: str, slide_text: str) -> dict | None:
+    return _chat_json(
+        "student-answer",
+        STUDENT_ANSWER_SYSTEM,
+        "\n".join(
+            [
+                f"TIÊU ĐỀ SLIDE: {slide_title}",
+                f"NỘI DUNG SLIDE:\n{slide_text or '(không có chữ)'}",
+                f"CÂU HỎI HỌC VIÊN: {question}",
+            ]
+        ),
+        max_tokens=500,
+    )
+
+
+SLIDE_SUMMARY_SYSTEM = """Bạn tóm tắt một slide để hỗ trợ học viên đặt và trả lời câu hỏi.
+Chỉ dùng nội dung có trong slide, không bổ sung kiến thức ngoài. Viết tiếng Việt, 2-3 câu ngắn,
+nêu ý chính và mối quan hệ quan trọng. Trả JSON đúng dạng {"summary": "..."}."""
+
+
+def summarize_slide(slide_title: str, slide_text: str) -> dict | None:
+    return _chat_json(
+        "slide-summary",
+        SLIDE_SUMMARY_SYSTEM,
+        f"TIÊU ĐỀ: {slide_title}\nNỘI DUNG:\n{slide_text or '(không có chữ)'}",
+        max_tokens=350,
+    )
+
+
 # ── 2. Soạn nháp câu hỏi cho checkpoint ─────────────────────────────────────
 
 CHECKPOINT_SYSTEM = """Bạn soạn NHÁP câu hỏi kiểm tra hiểu bài cho một checkpoint trong bài giảng. Giảng viên sẽ duyệt lại từng câu trước khi dùng.

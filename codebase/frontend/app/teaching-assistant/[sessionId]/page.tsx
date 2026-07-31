@@ -23,12 +23,14 @@ import {
 } from "@ant-design/icons";
 import {
   Alert,
+  App,
   Badge,
   Button,
   Card,
   Col,
   Divider,
   Empty,
+  Input,
   Layout,
   Menu,
   Progress,
@@ -381,9 +383,17 @@ function MetricTile({
 function SupportItem({
   item,
   elapsedSeconds,
+  draft,
+  busy,
+  onDraftChange,
+  onAnswer,
 }: {
   item: AssistantSupportItem;
   elapsedSeconds: number;
+  draft: string;
+  busy: boolean;
+  onDraftChange: (value: string) => void;
+  onAnswer: () => void;
 }) {
   const question = item.type === "ask_question";
   return (
@@ -410,6 +420,11 @@ function SupportItem({
                 : "Yêu cầu hỗ trợ không gắn hồ sơ"}
             </Typography.Text>
             <Tag color={question ? "blue" : "red"}>slide {item.slide_index + 1}</Tag>
+            {item.confusion_score !== null ? (
+              <Tag color={item.escalated ? "red" : "default"}>
+                bối rối {Math.round(item.confusion_score * 100)}%
+              </Tag>
+            ) : null}
           </div>
           <Typography.Paragraph style={{ margin: "6px 0 0", overflowWrap: "anywhere" }}>
             {item.text || "Học viên chưa nhập nội dung."}
@@ -417,6 +432,47 @@ function SupportItem({
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             <ClockCircleOutlined /> {formatAge(item.age_seconds + elapsedSeconds)}
           </Typography.Text>
+          {question && item.status === "answered" ? (
+            <Alert
+              type={item.answered_by === "ai" ? "warning" : "success"}
+              showIcon
+              style={{ marginTop: 10 }}
+              title={`Đã trả lời bởi ${
+                item.answered_by === "ai"
+                  ? "AI"
+                  : item.answered_by === "assistant"
+                    ? "trợ giảng"
+                    : "giảng viên"
+              }`}
+              description={
+                <>
+                  {item.answer_text}
+                  {item.answer_disclaimer ? (
+                    <div style={{ marginTop: 4 }}>{item.answer_disclaimer}</div>
+                  ) : null}
+                </>
+              }
+            />
+          ) : question && item.question_id !== null ? (
+            <Space.Compact style={{ width: "100%", marginTop: 10 }}>
+              <Input
+                value={draft}
+                onChange={(event) => onDraftChange(event.target.value)}
+                onPressEnter={onAnswer}
+                placeholder="Trợ giảng nhập câu trả lời…"
+                maxLength={2000}
+                disabled={busy}
+              />
+              <Button
+                type="primary"
+                onClick={onAnswer}
+                loading={busy}
+                disabled={!draft.trim()}
+              >
+                TA trả lời
+              </Button>
+            </Space.Compact>
+          ) : null}
         </div>
       </div>
     </li>
@@ -458,6 +514,7 @@ export default function TeachingAssistantPage() {
   const validSessionId = Number.isInteger(sessionId) && sessionId > 0;
   const { user, loading: authLoading } = useAuth();
   const { dark, toggle } = useTheme();
+  const { message } = App.useApp();
 
   const [dashboard, setDashboard] = useState<TeachingAssistantDashboard | null>(null);
   const [loading, setLoading] = useState(true);
@@ -471,6 +528,8 @@ export default function TeachingAssistantPage() {
   const [clock, setClock] = useState(() => Date.now());
   const [collapsed, setCollapsed] = useState(false);
   const [activeSection, setActiveSection] = useState("overview");
+  const [answerDrafts, setAnswerDrafts] = useState<Record<number, string>>({});
+  const [answeringId, setAnsweringId] = useState<number | null>(null);
   const debounceRef = useRef<number | null>(null);
   const refreshGenerationRef = useRef(0);
   const refreshInFlightRef = useRef<number | null>(null);
@@ -518,6 +577,28 @@ export default function TeachingAssistantPage() {
       }
     },
     [sessionId, validSessionId],
+  );
+
+  const answerSupportQuestion = useCallback(
+    async (questionId: number) => {
+      const text = answerDrafts[questionId]?.trim();
+      if (!text || answeringId !== null) return;
+      setAnsweringId(questionId);
+      try {
+        await api.answerSupportQuestion(sessionId, questionId, {
+          text,
+          answered_by: "assistant",
+        });
+        setAnswerDrafts((drafts) => ({ ...drafts, [questionId]: "" }));
+        message.success("Đã gửi câu trả lời của trợ giảng.");
+        await refresh(true);
+      } catch (err) {
+        message.error(err instanceof Error ? err.message : "Không gửi được câu trả lời.");
+      } finally {
+        setAnsweringId(null);
+      }
+    },
+    [answerDrafts, answeringId, message, refresh, sessionId],
   );
 
   useEffect(() => {
@@ -611,6 +692,8 @@ export default function TeachingAssistantPage() {
     socket.on("slide_changed", scheduleRefresh);
     socket.on("question_opened", scheduleRefresh);
     socket.on("question_closed", scheduleRefresh);
+    socket.on("support_question", scheduleRefresh);
+    socket.on("support_answered", scheduleRefresh);
     socket.on("session_ended", scheduleRefresh);
 
     return () => {
@@ -630,6 +713,8 @@ export default function TeachingAssistantPage() {
       socket.off("slide_changed", scheduleRefresh);
       socket.off("question_opened", scheduleRefresh);
       socket.off("question_closed", scheduleRefresh);
+      socket.off("support_question", scheduleRefresh);
+      socket.off("support_answered", scheduleRefresh);
       socket.off("session_ended", scheduleRefresh);
       handle.dispose();
     };
@@ -1234,6 +1319,24 @@ export default function TeachingAssistantPage() {
                                 key={item.key}
                                 item={item}
                                 elapsedSeconds={elapsedSinceRefresh}
+                                draft={
+                                  item.question_id === null
+                                    ? ""
+                                    : (answerDrafts[item.question_id] ?? "")
+                                }
+                                busy={item.question_id === answeringId}
+                                onDraftChange={(value) => {
+                                  if (item.question_id === null) return;
+                                  setAnswerDrafts((drafts) => ({
+                                    ...drafts,
+                                    [item.question_id!]: value,
+                                  }));
+                                }}
+                                onAnswer={() => {
+                                  if (item.question_id !== null) {
+                                    void answerSupportQuestion(item.question_id);
+                                  }
+                                }}
                               />
                             ))}
                           </ul>

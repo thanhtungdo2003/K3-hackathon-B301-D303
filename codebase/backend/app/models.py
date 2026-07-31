@@ -226,3 +226,24 @@ class StudentHint(Base):
     source: Mapped[str] = mapped_column(String(16), default="rule_fallback")  # llm | rule_fallback
     picked: Mapped[str | None] = mapped_column(Text, nullable=True)  # câu học viên chọn gửi lên
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class SupportQuestion(Base):
+    """Câu hỏi tự do của học viên và vòng đời hỗ trợ người thật/AI."""
+
+    __tablename__ = "support_questions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    participant_id: Mapped[int] = mapped_column(ForeignKey("participants.id"), index=True)
+    slide_index: Mapped[int] = mapped_column(Integer, default=0)
+    text: Mapped[str] = mapped_column(Text)
+    confusion_score: Mapped[float] = mapped_column(Float, default=0.0)
+    classifier_source: Mapped[str] = mapped_column(String(24), default="rule_fallback")
+    escalated: Mapped[bool] = mapped_column(Boolean, default=False)
+    status: Mapped[str] = mapped_column(String(24), default="pending")  # pending | answered
+    answer_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    answered_by: Mapped[str | None] = mapped_column(String(24), nullable=True)  # lecturer | assistant | ai
+    answer_disclaimer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    answered_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
