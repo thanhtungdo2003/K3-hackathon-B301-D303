@@ -7,8 +7,19 @@ from sqlalchemy.orm import Session as DbSession
 
 from .. import realtime
 from ..db import get_db
-from ..models import Advice, LearningEvent, Question, Session, Slide, StudentHint, SupportQuestion, User, utcnow
-from ..modules import advisor, analytics, auto_questions, state_engine
+from ..models import (
+    Advice,
+    Answer,
+    LearningEvent,
+    Question,
+    Session,
+    Slide,
+    StudentHint,
+    SupportQuestion,
+    User,
+    utcnow,
+)
+from ..modules import advisor, analytics, auto_questions, question_support, state_engine
 from ..schemas import (
     AdviceRequest,
     FeedbackRequest,
@@ -21,6 +32,7 @@ from ..schemas import (
 from ..security import current_user
 
 router = APIRouter(prefix="/teaching/sessions", tags=["teaching"])
+AUTO_QUESTIONS_PRESENTED_EVENT = "auto_questions_presented"
 
 
 def _owned_session(db: DbSession, session_id: int, user: User) -> Session:
@@ -54,8 +66,29 @@ async def change_slide(
         raise HTTPException(status_code=404, detail="Slide không tồn tại trong khoá học.")
 
     questions = auto_questions.ensure_for_slide(db, slide)
+    already_presented = (
+        db.scalar(
+            select(LearningEvent.id)
+            .where(
+                LearningEvent.session_id == session_id,
+                LearningEvent.slide_index == payload.slide_index,
+                LearningEvent.type == AUTO_QUESTIONS_PRESENTED_EVENT,
+            )
+            .limit(1)
+        )
+        is not None
+    )
+    should_present = bool(questions) and not already_presented
     session.current_slide_index = payload.slide_index
-    session.current_question_id = questions[0].id if questions else None
+    session.current_question_id = questions[0].id if should_present else None
+    if should_present:
+        db.add(
+            LearningEvent(
+                session_id=session_id,
+                slide_index=payload.slide_index,
+                type=AUTO_QUESTIONS_PRESENTED_EVENT,
+            )
+        )
     db.commit()
 
     await realtime.lecturer_slide_changed(session_id, payload.slide_index)
@@ -74,7 +107,7 @@ async def change_slide(
         }
         for question in questions
     ]
-    if question_payloads:
+    if should_present:
         # Event đơn giữ tương thích client cũ; event cụm phát sau để client mới giữ đủ 1-2 câu.
         await realtime.broadcast(session_id, "question_opened", question_payloads[0])
         await realtime.broadcast(
@@ -88,6 +121,7 @@ async def change_slide(
         "slide_index": payload.slide_index,
         "current_question_id": session.current_question_id,
         "questions": question_payloads,
+        "questions_presented": should_present,
     }
 
 
@@ -104,6 +138,7 @@ def current_checkpoint(
     slide = _slide(db, session, index)
     if slide is None or slide.checkpoint is None:
         return []
+    questions = auto_questions.usable_questions(list(slide.checkpoint.questions))
     return [
         QuestionOut(
             id=q.id,
@@ -114,7 +149,7 @@ def current_checkpoint(
             answer=q.answer,
             origin=q.origin,
         )
-        for q in slide.checkpoint.questions
+        for q in questions
     ]
 
 
@@ -189,6 +224,32 @@ def dashboard(
         .order_by(SupportQuestion.created_at.desc())
         .limit(8)
     ).all()
+    question_results = None
+    if session.current_question_id is not None:
+        current_answers = db.scalars(
+            select(Answer).where(
+                Answer.session_id == session_id,
+                Answer.question_id == session.current_question_id,
+            )
+        ).all()
+        graded = [
+            answer
+            for answer in current_answers
+            if answer.correct is not None and not answer.skipped
+        ]
+        correct_count = len([answer for answer in graded if answer.correct])
+        wrong_count = len(graded) - correct_count
+        graded_count = len(graded)
+        question_results = {
+            "question_id": session.current_question_id,
+            "answered": len([answer for answer in current_answers if not answer.skipped]),
+            "graded": graded_count,
+            "correct": correct_count,
+            "wrong": wrong_count,
+            "skipped": len([answer for answer in current_answers if answer.skipped]),
+            "correct_rate": round(correct_count / graded_count, 3) if graded_count else 0.0,
+            "wrong_rate": round(wrong_count / graded_count, 3) if graded_count else 0.0,
+        }
 
     return {
         "slide_index": index,
@@ -196,6 +257,7 @@ def dashboard(
         "metrics": metrics.as_dict(),
         "state": state.as_dict(),
         "current_question_id": session.current_question_id,
+        "question_results": question_results,
         "ended": session.ended_at is not None,
         "inbox": [
             {
@@ -203,7 +265,7 @@ def dashboard(
                 "text": question.text,
                 "slide_index": question.slide_index,
                 "confusion_score": question.confusion_score,
-                "confusion_threshold": 0.60,
+                "confusion_threshold": question_support.CONFUSION_THRESHOLD,
                 "escalated": question.escalated,
                 "status": question.status,
                 "answer_text": question.answer_text,

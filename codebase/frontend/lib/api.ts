@@ -231,6 +231,16 @@ export interface TeachingDashboard {
   metrics: Metrics;
   state: StateInfo;
   current_question_id: number | null;
+  question_results: {
+    question_id: number;
+    answered: number;
+    graded: number;
+    correct: number;
+    wrong: number;
+    skipped: number;
+    correct_rate: number;
+    wrong_rate: number;
+  } | null;
   ended: boolean;
   inbox: SupportQuestion[];
   latest_advice: Advice | null;
@@ -619,6 +629,18 @@ export const api = {
     ),
   teachingDashboard: (sessionId: number) =>
     request<TeachingDashboard>(`/teaching/sessions/${sessionId}/dashboard`),
+  answerSupportQuestion: (
+    sessionId: number,
+    questionId: number,
+    b: { text: string; answered_by: "lecturer" | "assistant" },
+  ) =>
+    request<SupportQuestion>(
+      `/teaching/sessions/${sessionId}/support-questions/${questionId}/answer`,
+      {
+        method: "POST",
+        body: body(b),
+      },
+    ),
   advice: (
     sessionId: number,
     b: { slide_index?: number; lecturer_request?: string },
@@ -697,6 +719,7 @@ export const api = {
       correct: boolean | null;
       score: number;
       explanation: string | null;
+      correct_answer: string | null;
     }>(`/sessions/${sessionId}/answers`, {
       method: "POST",
       body: body(b),

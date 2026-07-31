@@ -100,6 +100,40 @@ def _support_out(question: SupportQuestion) -> dict:
     }
 
 
+def _normalized_answer_key(question: Question) -> dict:
+    answer = dict(question.answer) if isinstance(question.answer, dict) else {}
+    if question.type in ("multiple_choice", "true_false"):
+        value = str(answer.get("value", "")).strip()
+        if value.isdigit() and int(value) < len(question.options):
+            answer["value"] = question.options[int(value)]
+    elif question.type == "multiple_select":
+        values: list[str] = []
+        for raw in answer.get("values", []):
+            value = str(raw).strip()
+            if value.isdigit() and int(value) < len(question.options):
+                value = str(question.options[int(value)])
+            values.append(value)
+        answer["values"] = values
+    return answer
+
+
+def _correct_answer_text(question: Question) -> str | None:
+    answer = _normalized_answer_key(question)
+    if question.type in ("multiple_choice", "true_false"):
+        value = answer.get("value")
+        return str(value) if value not in (None, "") else None
+    if question.type == "multiple_select":
+        values = [str(value) for value in answer.get("values", []) if str(value).strip()]
+        return ", ".join(values) or None
+    if question.type == "ordering":
+        values = [str(value) for value in answer.get("order", []) if str(value).strip()]
+        return " → ".join(values) or None
+    if question.type == "fill_blank":
+        values = [str(value) for value in answer.get("accepted", []) if str(value).strip()]
+        return " / ".join(values) or None
+    return None
+
+
 @router.post("/join", response_model=JoinResponse)
 async def join(payload: JoinRequest, db: DbSession = Depends(get_db)) -> JoinResponse:
     code = payload.code.strip().upper()
@@ -225,12 +259,23 @@ async def submit_answer(
         )
     )
     if existing is not None:
-        return AnswerResponse(correct=existing.correct, score=existing.score)
+        answer_key = _normalized_answer_key(question)
+        explanation = answer_key.get("explanation")
+        return AnswerResponse(
+            correct=existing.correct,
+            score=existing.score,
+            explanation=explanation,
+            correct_answer=_correct_answer_text(question),
+        )
 
     if payload.skipped:
         correct, score = None, 0.0
     else:
-        correct, score = assessment.grade(question.type, question.answer, {"value": payload.value})
+        correct, score = assessment.grade(
+            question.type,
+            _normalized_answer_key(question),
+            {"value": payload.value},
+        )
 
     db.add(
         Answer(
@@ -252,8 +297,13 @@ async def submit_answer(
         session_id, "answer_received", {"question_id": question.id, "slide_index": slide_index}
     )
 
-    explanation = question.answer.get("explanation") if isinstance(question.answer, dict) else None
-    return AnswerResponse(correct=correct, score=score, explanation=explanation)
+    explanation = _normalized_answer_key(question).get("explanation")
+    return AnswerResponse(
+        correct=correct,
+        score=score,
+        explanation=explanation,
+        correct_answer=_correct_answer_text(question),
+    )
 
 
 @router.post("/sessions/{session_id}/events")
@@ -447,9 +497,31 @@ async def ai_support(
 
     classification = question_support.classify(message, slide.title, slide_text)
     if classification.score < question_support.CONFUSION_THRESHOLD:
+        lesson_slides = db.scalars(
+            select(Slide)
+            .where(Slide.course_id == participant.session.room.course_id)
+            .order_by(Slide.index)
+        ).all()
+        lesson_outline = "\n".join(
+            f"SLIDE {item.index + 1}: {item.title}"
+            for item in lesson_slides
+        )
+        lesson_details = "\n\n".join(
+            f"SLIDE {item.index + 1}:\n{slide_plain_text(item)}"
+            for item in lesson_slides
+        )
+        lesson_text = (
+            f"DANH SÁCH SLIDE:\n{lesson_outline}\n\n"
+            f"NỘI DUNG CÁC SLIDE:\n{lesson_details}"
+        )[:16000]
         return {
             "summary": summary,
-            "answer": question_support.answer(message, slide.title, slide_text),
+            "answer": question_support.answer(
+                message,
+                slide.title,
+                slide_text,
+                lesson_text,
+            ),
             "confusion_score": classification.score,
             "confusion_threshold": question_support.CONFUSION_THRESHOLD,
             "escalated": False,
@@ -467,7 +539,7 @@ async def ai_support(
         db,
     )
     # Giữ quyết định chuyển tuyến của chính lượt chat này làm nguồn sự thật, tránh
-    # một lần phân loại LLM thứ hai dao động quanh ngưỡng 60%.
+    # một lần phân loại LLM thứ hai dao động quanh ngưỡng 30%.
     support_row = db.get(SupportQuestion, support["id"])
     if support_row is not None:
         was_escalated = support_row.escalated
@@ -496,7 +568,7 @@ async def ai_support(
     return {
         "summary": summary,
         "answer": (
-            "Mức bối rối đã đạt ngưỡng 60%. Mình đã chuyển câu hỏi này đến "
+            "Mức bối rối đã đạt ngưỡng 30%. Mình đã chuyển câu hỏi này đến "
             "giảng viên và trợ giảng để hỗ trợ chính xác hơn."
         ),
         "confusion_score": classification.score,

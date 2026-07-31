@@ -217,6 +217,7 @@ class AnswerResponse(BaseModel):
     correct: bool | None
     score: float
     explanation: str | None = None
+    correct_answer: str | None = None
 
 
 class EventRequest(BaseModel):
@@ -260,7 +261,7 @@ class SupportQuestionOut(BaseModel):
     slide_index: int
     text: str
     confusion_score: float
-    confusion_threshold: float = 0.60
+    confusion_threshold: float = 0.30
     escalated: bool
     status: Literal["pending", "answered"]
     answer_text: str | None = None
@@ -280,7 +281,7 @@ class AiSupportResponse(BaseModel):
     summary: str
     answer: str
     confusion_score: float
-    confusion_threshold: float = 0.60
+    confusion_threshold: float = 0.30
     escalated: bool
     support_question: SupportQuestionOut | None = None
     disclaimer: str

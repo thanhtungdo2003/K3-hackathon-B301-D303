@@ -11,6 +11,7 @@ Mọi lượt gọi đều ghi trace ra ./traces/. Ba việc đầu ép JSON; vi
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -153,20 +154,29 @@ def assess_student_confusion(question: str, slide_title: str, slide_text: str) -
     )
 
 
-STUDENT_ANSWER_SYSTEM = """Bạn là trợ giảng AI trả lời câu hỏi học viên khi hàng đợi người thật quá tải.
-Chỉ dùng thông tin có trong slide. Nếu slide không đủ dữ liệu, nói rõ là chưa đủ dữ liệu và
-khuyên học viên xác nhận với giảng viên. Trả lời tiếng Việt, ngắn gọn, không bịa nguồn.
+STUDENT_ANSWER_SYSTEM = """Bạn là trợ giảng AI trả lời câu hỏi học viên dựa trên bài giảng.
+Chỉ dùng thông tin có trong slide hiện tại và ngữ cảnh toàn bộ bài học được cung cấp. Nếu câu hỏi
+hỏi tổng quan như "hôm nay học gì", hãy tổng hợp các chủ đề trong toàn bộ bài học. Nếu câu hỏi nhắc
+"slide này", "phần này" hoặc một chi tiết cụ thể, ưu tiên slide hiện tại. Nếu bài giảng không đủ dữ
+liệu, nói rõ là chưa đủ dữ liệu và khuyên học viên xác nhận với giảng viên. Trả lời tiếng Việt,
+ngắn gọn, không bịa nguồn.
 Trả JSON đúng dạng {"answer": "..."}."""
 
 
-def answer_student_question(question: str, slide_title: str, slide_text: str) -> dict | None:
+def answer_student_question(
+    question: str,
+    slide_title: str,
+    slide_text: str,
+    lesson_text: str = "",
+) -> dict | None:
     return _chat_json(
         "student-answer",
         STUDENT_ANSWER_SYSTEM,
         "\n".join(
             [
                 f"TIÊU ĐỀ SLIDE: {slide_title}",
-                f"NỘI DUNG SLIDE:\n{slide_text or '(không có chữ)'}",
+                f"NỘI DUNG SLIDE HIỆN TẠI:\n{slide_text or '(không có chữ)'}",
+                f"NGỮ CẢNH TOÀN BỘ BÀI HỌC:\n{lesson_text or slide_text or '(không có chữ)'}",
                 f"CÂU HỎI HỌC VIÊN: {question}",
             ]
         ),
@@ -196,13 +206,16 @@ RÀNG BUỘC
 - Chỉ hỏi về nội dung CÓ TRONG slide được đưa. Không thêm kiến thức ngoài slide.
 - Mỗi câu kiểm tra một ý, trả lời được trong 30 giây.
 - Phương án nhiễu phải hợp lý: là hiểu nhầm thường gặp, không phải phương án ngớ ngẩn.
+- Không hỏi học viên "đã hiểu chưa", "muốn giải thích phần nào" hoặc tự đánh giá mức độ hiểu.
+- Câu hỏi phải kiểm tra một khái niệm, quan hệ, công thức hoặc quy trình cụ thể xuất hiện trên slide.
+- Mỗi câu phải có đúng một đáp án rõ ràng và explanation giải thích bằng nội dung trên slide.
 - Tiếng Việt. Câu hỏi tối đa 200 ký tự, mỗi phương án tối đa 120 ký tự.
 - Nếu slide quá mỏng để ra đề, trả "questions": [] và ghi lý do vào "note".
 
 CÁC LOẠI ĐƯỢC DÙNG
-- "multiple_choice": options 3-4 phương án, answer = {"value": "<chỉ số đúng, dạng chuỗi>"}
-- "multiple_select": options 4 phương án, answer = {"values": ["<chỉ số>", "..."]}
-- "true_false": options ["Đúng", "Sai"], answer = {"value": "0" hoặc "1"}
+- "multiple_choice": options 3-4 phương án, answer.value là NGUYÊN VĂN phương án đúng.
+- "multiple_select": options 4 phương án, answer.values chứa NGUYÊN VĂN các phương án đúng.
+- "true_false": options ["Đúng", "Sai"], answer.value là "Đúng" hoặc "Sai".
 - "fill_blank": options [], answer = {"accepted": ["cách viết 1", "cách viết 2"]}
 
 ĐỊNH DẠNG: trả về JSON đúng dạng
@@ -226,14 +239,81 @@ def draft_checkpoint_questions(slide_title: str, slide_text: str, goal: str, cou
     if data is None:
         return None
 
+    generic_markers = (
+        "đã hiểu",
+        "đã nắm",
+        "mức độ hiểu",
+        "muốn được giải thích",
+        "phần nào chưa",
+        "cảm thấy thế nào",
+    )
+    slide_words = {
+        word.casefold()
+        for word in re.findall(r"\w+", f"{slide_title} {slide_text}", flags=re.UNICODE)
+        if len(word) >= 3
+    }
     cleaned: list[dict] = []
     for q in data.get("questions") or []:
         qtype = str(q.get("type", "")).strip()
         prompt = str(q.get("prompt", "")).strip()
-        if qtype not in QUESTION_TYPES or not prompt:
+        if qtype not in ("multiple_choice", "multiple_select", "true_false", "fill_blank") or not prompt:
             continue
-        options = [str(o).strip()[:120] for o in (q.get("options") or [])][:6]
+        if any(marker in prompt.casefold() for marker in generic_markers):
+            continue
+        options = [
+            str(option).strip()[:120]
+            for option in (q.get("options") or [])
+            if str(option).strip()
+        ][:6]
+        if len({option.casefold() for option in options}) != len(options):
+            continue
         answer = q.get("answer") if isinstance(q.get("answer"), dict) else {}
+        generated_words = {
+            word.casefold()
+            for word in re.findall(
+                r"\w+",
+                " ".join([prompt, *options]),
+                flags=re.UNICODE,
+            )
+            if len(word) >= 3
+        }
+        if slide_words and not (slide_words & generated_words):
+            continue
+
+        if qtype == "true_false":
+            options = ["Đúng", "Sai"]
+        if qtype in ("multiple_choice", "true_false"):
+            value = str(answer.get("value", "")).strip()
+            if value.isdigit() and int(value) < len(options):
+                value = options[int(value)]
+            if value not in options:
+                continue
+            answer = {"value": value}
+        elif qtype == "multiple_select":
+            values = [str(value).strip() for value in answer.get("values", [])]
+            normalized: list[str] = []
+            for value in values:
+                if value.isdigit() and int(value) < len(options):
+                    value = options[int(value)]
+                if value not in options:
+                    normalized = []
+                    break
+                if value not in normalized:
+                    normalized.append(value)
+            if not normalized:
+                continue
+            answer = {"values": normalized}
+        elif qtype == "fill_blank":
+            accepted = [
+                str(value).strip()[:120]
+                for value in answer.get("accepted", [])
+                if str(value).strip()
+            ]
+            if not accepted:
+                continue
+            options = []
+            answer = {"accepted": accepted}
+
         if q.get("explanation"):
             answer = {**answer, "explanation": str(q["explanation"])[:300]}
         if qtype in ("multiple_choice", "multiple_select", "true_false") and len(options) < 2:

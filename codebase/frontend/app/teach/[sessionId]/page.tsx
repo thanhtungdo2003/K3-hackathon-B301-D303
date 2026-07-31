@@ -483,8 +483,22 @@ export default function LecternPage() {
             </div>
             {/* ── chất lượng trả lời ──────────────────────────────────────── */}
             <BentoCard span={2} title="Chất lượng trả lời">
-              <div className="bento-value">{pct(correct)}</div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-xl p-3" style={{ background: "var(--ai-blue-tint)" }}>
+                  <div className="bento-label">Đúng</div>
+                  <div className="text-2xl font-extrabold text-green-600">{pct(correct)}</div>
+                </div>
+                <div className="rounded-xl p-3" style={{ background: "var(--ai-red-tint)" }}>
+                  <div className="bento-label">Sai</div>
+                  <div className="text-2xl font-extrabold" style={{ color: "var(--ai-red)" }}>
+                    {pct(metrics?.wrong_rate ?? 0)}
+                  </div>
+                </div>
+              </div>
               <BentoBar value={correct} />
+              <div className="text-xs font-semibold" style={{ color: "var(--ai-muted)" }}>
+                {metrics?.graded_answers ?? 0} lượt đã chấm · {metrics?.responded ?? 0} lượt trả lời
+              </div>
               <div className="grid grid-cols-2 gap-2 pt-1">
                 {[
                   { label: "Bỏ qua", value: pct(metrics?.skip_rate ?? 0) },
@@ -578,6 +592,31 @@ export default function LecternPage() {
                           </Tag>
                         ) : null}
                       </div>
+                      {live && board?.question_results?.question_id === q.id ? (
+                        <div
+                          className="mt-3 grid grid-cols-3 gap-2 rounded-xl p-2"
+                          style={{ background: "var(--ai-card)" }}
+                        >
+                          <div>
+                            <div className="bento-label">Đã trả lời</div>
+                            <div className="text-lg font-extrabold tabular-nums">
+                              {board.question_results.answered}/{metrics?.online_students ?? 0}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="bento-label">Đúng</div>
+                            <div className="text-lg font-extrabold text-green-600">
+                              {pct(board.question_results.correct_rate)}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="bento-label">Sai</div>
+                            <div className="text-lg font-extrabold" style={{ color: "var(--ai-red)" }}>
+                              {pct(board.question_results.wrong_rate)}
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   </li>
                 );

@@ -56,12 +56,19 @@ function callSummary(call: ToolCall): string {
   return "xong";
 }
 
-export default function ChatPanel({ onChanged, onOpenChange }: { onChanged?: () => void; onOpenChange?: (open: boolean) => void }) {
+export default function ChatPanel({
+  open = true,
+  onChanged,
+  onOpenChange,
+}: {
+  open?: boolean;
+  onChanged?: () => void;
+  onOpenChange?: (open: boolean) => void;
+}) {
   const [status, setStatus] = useState<AssistantStatus | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
-  const [open, setOpen] = useState(true);
   const scroller = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
 
@@ -115,7 +122,7 @@ export default function ChatPanel({ onChanged, onOpenChange }: { onChanged?: () 
   if (!open) {
     return (
       <button
-        onClick={() => { setOpen(true); onOpenChange?.(true); }}
+        onClick={() => onOpenChange?.(true)}
         aria-label="Mở trợ lý"
         className="flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold shadow-lg transition-all hover:scale-105 active:scale-95"
         style={{
@@ -176,7 +183,7 @@ export default function ChatPanel({ onChanged, onOpenChange }: { onChanged?: () 
           aria-label={status?.available ? "Trợ lý đang hoạt động" : "Trợ lý chưa hoạt động"}
         />
         <button
-          onClick={() => { setOpen(false); onOpenChange?.(false); }}
+          onClick={() => onOpenChange?.(false)}
           aria-label="Đóng trợ lý"
           className="grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-colors hover:bg-white/20"
           style={{ background: "rgba(255,255,255,.1)", border: "none", color: "#fff", cursor: "pointer" }}
