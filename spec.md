@@ -12,7 +12,11 @@ Lát cắt được build và chấm trong spec này là **Teaching Advisor**.
 > Mọi mục còn lại (§3–§7, §9) đã hoàn chỉnh và khớp với code trong `codebase/`.
 
 ---
+## Bằng chứng & impact
+![alt text](image.png)
 
+link khảo sát:
+https://docs.google.com/forms/d/1bYl29F0Yat1XG9wfdHWS3IAJufswdi5NMgvo6jNhL70/edit#responses
 ## §1. User & Job
 
 **Job executor.** Giảng viên đang **trong lúc dạy live** một buổi VLearn có slide và câu hỏi tương tác.

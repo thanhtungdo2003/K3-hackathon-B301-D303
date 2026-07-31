@@ -5,17 +5,18 @@
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
-const TOKEN_KEY = "agora-token";
+export const AUTH_TOKEN_STORAGE_KEY = "agora-token";
+export const AUTH_SESSION_INVALID_EVENT = "agora-auth-session-invalid";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(TOKEN_KEY);
+  return window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
 }
 
 export function setToken(token: string | null) {
   if (typeof window === "undefined") return;
-  if (token) window.localStorage.setItem(TOKEN_KEY, token);
-  else window.localStorage.removeItem(TOKEN_KEY);
+  if (token) window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+  else window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
 }
 
 export class ApiError extends Error {
@@ -231,7 +232,7 @@ export interface TeachingDashboard {
   state: StateInfo;
   current_question_id: number | null;
   ended: boolean;
-  inbox: { text: string; slide_index: number; at: string }[];
+  inbox: SupportQuestion[];
   latest_advice: Advice | null;
 }
 
@@ -314,6 +315,121 @@ export interface AssistantStatus {
   tools: { name: string; label: string }[];
 }
 
+export interface CountRate {
+  count: number;
+  rate: number;
+}
+
+export interface AssistantPulse {
+  total_students: number;
+  classified_students: number;
+  on_track: CountRate;
+  needs_follow_up: CountRate;
+  struggling: CountRate;
+  unclassified: CountRate;
+  rule_version: string;
+  rules: Record<string, string>;
+}
+
+export interface AssistantConceptEvidence {
+  online_students: number;
+  responded: number;
+  graded_answers: number;
+  wrong_rate: number;
+  skip_rate: number;
+  low_confidence_rate: number;
+  return_visits: number;
+  questions_asked: number;
+}
+
+export interface AssistantConcept {
+  slide_index: number;
+  title: string;
+  source: "slide_title";
+  understanding: number | null;
+  status: "green" | "yellow" | "red" | "insufficient_data";
+  state: string;
+  state_label: string;
+  severity: number;
+  trusted: boolean;
+  sample_note: string;
+  evidence: AssistantConceptEvidence;
+}
+
+export interface AssistantAdvice {
+  id: number;
+  slide_index: number;
+  headline: string;
+  action: string;
+  evidence: unknown[];
+  confidence: string;
+  source: string;
+  created_at: string;
+}
+
+export interface AssistantDiagnostic {
+  slide_index: number;
+  state: string;
+  state_label: string;
+  severity: number;
+  reasons: string[];
+  trusted: boolean;
+  sample_note: string;
+  latest_advice: AssistantAdvice | null;
+}
+
+export interface AssistantSupportItem {
+  key: string;
+  type: "raise_hand" | "ask_question";
+  question_id: number | null;
+  slide_index: number;
+  text: string;
+  confusion_score: number | null;
+  escalated: boolean;
+  status: "pending" | "answered" | null;
+  answer_text: string | null;
+  answered_by: "lecturer" | "assistant" | "ai" | null;
+  answer_disclaimer: string | null;
+  created_at: string;
+  age_seconds: number;
+}
+
+export interface SlideTrackingAggregate {
+  session_id: number;
+  lecturer_slide_index: number;
+  timeout_seconds: number;
+  online_students: number;
+  tracked_students: number;
+  connected_students: number;
+  aligned_students: number;
+  out_of_sync_students: number;
+  unknown_students: number;
+  tracking_coverage: number;
+  auto_synced_total: number;
+}
+
+export interface TeachingAssistantDashboard {
+  session: {
+    id: number;
+    title: string;
+    course_title: string;
+    current_slide_index: number;
+    ended: boolean;
+  };
+  generated_at: string;
+  pulse: AssistantPulse;
+  concepts: AssistantConcept[];
+  hot_concepts: AssistantConcept[];
+  diagnostic: AssistantDiagnostic;
+  support_queue: AssistantSupportItem[];
+  slide_sync: SlideTrackingAggregate;
+  privacy: {
+    identity_fields_omitted: boolean;
+    free_text_may_contain_self_identification: boolean;
+    note: string;
+  };
+}
+
 export interface JoinResult {
   token: string;
   participant_id: number;
@@ -339,6 +455,39 @@ export interface StudentState {
     options: string[];
     slide_index: number;
   } | null;
+  current_questions: {
+    id: number;
+    type: QuestionType;
+    prompt: string;
+    options: string[];
+    slide_index: number;
+  }[];
+}
+
+export interface SupportQuestion {
+  id: number;
+  slide_index: number;
+  text: string;
+  confusion_score: number;
+  confusion_threshold: number;
+  escalated: boolean;
+  status: "pending" | "answered";
+  answer_text: string | null;
+  answered_by: "lecturer" | "assistant" | "ai" | null;
+  answer_disclaimer: string | null;
+  created_at?: string;
+  answered_at?: string | null;
+  at?: string;
+}
+
+export interface AiSupportResponse {
+  summary: string;
+  answer: string;
+  confusion_score: number;
+  confusion_threshold: number;
+  escalated: boolean;
+  support_question: SupportQuestion | null;
+  disclaimer: string;
 }
 
 /* ------------------------------------------------------------------- endpoint */
@@ -451,7 +600,7 @@ export const api = {
 
   /* --- Bục Giảng --- */
   changeSlide: (sessionId: number, slide_index: number) =>
-    request<{ slide_index: number }>(`/teaching/sessions/${sessionId}/slide`, {
+    request<{ slide_index: number; current_question_id: number | null }>(`/teaching/sessions/${sessionId}/slide`, {
       method: "POST",
       body: body({ slide_index }),
     }),
@@ -502,6 +651,16 @@ export const api = {
       body: body({ messages }),
     }),
 
+  /* --- console Trợ giảng theo thời gian thực --- */
+  teachingAssistantDashboard: (sessionId: number) =>
+    request<TeachingAssistantDashboard>(
+      `/teaching-assistant/sessions/${sessionId}/dashboard`,
+    ),
+  assistantSlideTracking: (sessionId: number) =>
+    request<SlideTrackingAggregate>(
+      `/teaching-assistant/sessions/${sessionId}/slide-tracking`,
+    ),
+
   /* --- dashboard chủ phòng --- */
   overview: () => request<Overview>("/insights/overview"),
   recentSessions: (limit = 10) =>
@@ -518,8 +677,11 @@ export const api = {
     }),
   studentSlides: (sessionId: number) =>
     request<SlideOut[]>(`/sessions/${sessionId}/slides`, { auth: false }),
-  studentState: (sessionId: number) =>
-    request<StudentState>(`/sessions/${sessionId}/state`, { auth: false }),
+  studentState: (sessionId: number, token?: string) =>
+    request<StudentState>(
+      `/sessions/${sessionId}/state${token ? `?token=${encodeURIComponent(token)}` : ""}`,
+      { auth: false },
+    ),
   submitAnswer: (
     sessionId: number,
     b: {
@@ -572,6 +734,29 @@ export const api = {
     b: { token: string; question: string },
   ) =>
     request<unknown>(`/sessions/${sessionId}/hints/${hintId}/send`, {
+      method: "POST",
+      body: body(b),
+      auth: false,
+    }),
+  askQuestion: (
+    sessionId: number,
+    b: { token: string; slide_index: number; text: string },
+  ) =>
+    request<SupportQuestion>(`/sessions/${sessionId}/questions`, {
+      method: "POST",
+      body: body(b),
+      auth: false,
+    }),
+  myQuestions: (sessionId: number, token: string) =>
+    request<SupportQuestion[]>(
+      `/sessions/${sessionId}/questions?token=${encodeURIComponent(token)}`,
+      { auth: false },
+    ),
+  aiSupport: (
+    sessionId: number,
+    b: { token: string; slide_index: number; message?: string },
+  ) =>
+    request<AiSupportResponse>(`/sessions/${sessionId}/ai-support`, {
       method: "POST",
       body: body(b),
       auth: false,

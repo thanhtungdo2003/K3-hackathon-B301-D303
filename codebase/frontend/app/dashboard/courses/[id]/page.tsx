@@ -1,6 +1,6 @@
 "use client";
 
-/** Chi tiết khoá học — Bento: slide, checkpoint, câu hỏi và chất lượng sau các buổi dạy. */
+/** Chi tiết khoá học — slide, bộ câu hỏi tự động và chất lượng sau buổi dạy. */
 import {
   ArrowLeftOutlined,
   DeleteOutlined,
@@ -22,11 +22,9 @@ import {
   Modal,
   Space,
   Spin,
-  Switch,
   Table,
   Tabs,
   Tag,
-  Tooltip,
   Typography,
   Upload,
 } from "antd";
@@ -144,7 +142,7 @@ export default function CourseDetailPage() {
         label: `Checkpoint slide ${slide.index + 1}`,
         goal: "",
       });
-      message.success("Đã tạo checkpoint.");
+      message.success("Đã tạo bộ câu hỏi cho slide.");
       await load();
     } catch (err) {
       message.error(
@@ -348,7 +346,7 @@ export default function CourseDetailPage() {
         items={[
           {
             key: "slides",
-            label: `Slide & checkpoint (${slides.length})`,
+            label: `Slide & câu hỏi (${slides.length})`,
             children:
               slides.length === 0 ? (
                 <BentoGrid>
@@ -410,9 +408,9 @@ export default function CourseDetailPage() {
                     icon={<FileTextOutlined />}
                   />
                   <BentoStat
-                    label="Checkpoint"
+                    label="Bộ câu hỏi"
                     value={checkpoints.length}
-                    hint={`${checkpoints.filter((c) => c.active).length} đang bật`}
+                    hint="Tự phát khi đổi slide"
                     icon={<FlagOutlined />}
                   />
                   <BentoStat
@@ -423,7 +421,7 @@ export default function CourseDetailPage() {
                   />
 
                   {emptyCheckpoints.length > 0 ? (
-                    <BentoCard span={6} tone="red" title="Checkpoint rỗng">
+                    <BentoCard span={6} tone="red" title="Bộ câu hỏi chưa soạn">
                       <div className="flex items-start gap-2 text-sm font-semibold">
                         <WarningFilled
                           style={{ color: "var(--ai-red)", marginTop: 3 }}
@@ -452,7 +450,7 @@ export default function CourseDetailPage() {
                             onClick={() => setActive(i)}
                             className="mb-1 flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors"
                             style={{
-                              background: on ? "var(--ai-navy)" : "transparent",
+                              background: on ? "var(--ai-navy-surface)" : "transparent",
                               color: on ? "#fff" : "var(--ai-ink)",
                             }}
                           >
@@ -516,7 +514,7 @@ export default function CourseDetailPage() {
                     ) : null}
                   </BentoCard>
 
-                  {/* checkpoint của slide đang chọn */}
+                  {/* bộ câu hỏi của slide đang chọn */}
                   <BentoCard
                     span={6}
                     tone={checkpoint?.active ? "red" : "plain"}

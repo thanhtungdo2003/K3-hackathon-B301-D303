@@ -30,6 +30,7 @@ export default function AiDashboard() {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [chatOpen, setChatOpen] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -53,7 +54,11 @@ export default function AiDashboard() {
   const empty = overview !== null && overview.courses === 0;
 
   return (
-    <div className="grid min-h-0 gap-4 xl:grid-cols-[1fr_380px]">
+    <>
+    <div
+      className={`grid min-h-0 gap-4 ${chatOpen ? "xl:grid-cols-[1fr_380px]" : "xl:grid-cols-1"}`}
+      style={{ transition: "grid-template-columns 0.3s cubic-bezier(.4,0,.2,1)" }}
+    >
       {/* ── cột trái: Bento ───────────────────────────────────────────── */}
       <div className="min-w-0 space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -220,7 +225,7 @@ export default function AiDashboard() {
                   >
                     <span
                       className="rounded-lg px-2 py-0.5 text-xs font-extrabold tabular-nums"
-                      style={{ background: "var(--ai-navy)", color: "#fff", letterSpacing: 2 }}
+                      style={{ background: "var(--ai-navy-surface)", color: "#fff", letterSpacing: 2 }}
                     >
                       {s.room_code}
                     </span>
@@ -278,11 +283,17 @@ export default function AiDashboard() {
       </div>
 
       {/* ── cột phải: trợ lý ──────────────────────────────────────────── */}
-      <div className="min-w-0 xl:sticky xl:top-4 xl:h-[calc(100vh-96px)]">
-        <div className="h-[560px] xl:h-full">
-          <ChatPanel onChanged={load} />
+      {chatOpen && (
+        <div className="min-w-0 xl:sticky xl:top-4 xl:h-[calc(100vh-96px)]">
+          <div className="h-[560px] xl:h-full">
+            <ChatPanel onChanged={load} onOpenChange={setChatOpen} />
+          </div>
         </div>
-      </div>
+      )}
     </div>
+
+    {/* nút floating nằm ngoài grid — luôn cố định góc dưới phải */}
+    {!chatOpen && <ChatPanel onChanged={load} onOpenChange={setChatOpen} />}
+    </>
   );
 }
