@@ -14,6 +14,7 @@ import {
   PoweroffOutlined,
   RadarChartOutlined,
   RightOutlined,
+  SendOutlined,
   TeamOutlined,
 } from "@ant-design/icons";
 import {
@@ -66,6 +67,7 @@ export default function LecternPage() {
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState("");
   const [answerDrafts, setAnswerDrafts] = useState<Record<number, string>>({});
+  const [assigningQuestionId, setAssigningQuestionId] = useState<number | null>(null);
   const seenAdvice = useRef<number | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
@@ -133,6 +135,7 @@ export default function LecternPage() {
     socket.on("signal", bump);
     socket.on("support_question", bump);
     socket.on("support_answered", bump);
+    socket.on("support_assigned", bump);
     socket.on("roster_changed", bump);
     socket.on("advice", onAdvice);
     socket.on("session_ended", bump);
@@ -141,6 +144,7 @@ export default function LecternPage() {
       socket.off("signal", bump);
       socket.off("support_question", bump);
       socket.off("support_answered", bump);
+      socket.off("support_assigned", bump);
       socket.off("roster_changed", bump);
       socket.off("advice", onAdvice);
       socket.off("session_ended", bump);
@@ -190,17 +194,33 @@ export default function LecternPage() {
 
   async function answerSupportQuestion(
     questionId: number,
-    answeredBy: "lecturer" | "assistant" = "lecturer",
   ) {
     const text = answerDrafts[questionId]?.trim();
     if (!text) return;
     try {
-      await api.answerSupportQuestion(sessionId, questionId, { text, answered_by: answeredBy });
+      await api.answerSupportQuestion(sessionId, questionId, {
+        text,
+        answered_by: "lecturer",
+      });
       setAnswerDrafts((drafts) => ({ ...drafts, [questionId]: "" }));
       message.success("Đã gửi câu trả lời cho học viên.");
       await refresh();
     } catch (err) {
       message.error(err instanceof Error ? err.message : "Không gửi được câu trả lời.");
+    }
+  }
+
+  async function assignSupportQuestion(questionId: number) {
+    if (assigningQuestionId !== null) return;
+    setAssigningQuestionId(questionId);
+    try {
+      await api.assignSupportQuestionToAssistant(sessionId, questionId);
+      message.success("Đã chuyển câu hỏi sang hàng đợi của trợ giảng.");
+      await refresh();
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "Không chuyển được câu hỏi cho trợ giảng.");
+    } finally {
+      setAssigningQuestionId(null);
     }
   }
 
@@ -687,21 +707,28 @@ export default function LecternPage() {
                           }))
                         }
                         placeholder="Nhập câu trả lời…"
-                        onPressEnter={() => void answerSupportQuestion(item.id, "lecturer")}
+                        onPressEnter={() => void answerSupportQuestion(item.id)}
                       />
                       <Button
                         type="primary"
-                        onClick={() => void answerSupportQuestion(item.id, "lecturer")}
+                        onClick={() => void answerSupportQuestion(item.id)}
                         disabled={!answerDrafts[item.id]?.trim()}
                       >
                         GV trả lời
                       </Button>
-                      <Button
-                        onClick={() => void answerSupportQuestion(item.id, "assistant")}
-                        disabled={!answerDrafts[item.id]?.trim()}
-                      >
-                        TA trả lời
-                      </Button>
+                      {item.assigned_to_assistant ? (
+                        <Button icon={<TeamOutlined />} disabled>
+                          Đã chuyển TA
+                        </Button>
+                      ) : (
+                        <Button
+                          icon={<SendOutlined />}
+                          loading={assigningQuestionId === item.id}
+                          onClick={() => void assignSupportQuestion(item.id)}
+                        >
+                          Chuyển cho TA
+                        </Button>
+                      )}
                     </Space.Compact>
                   )}
                 </li>
